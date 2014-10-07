@@ -7,7 +7,17 @@ Last edit:    2014/10/07
 Compiling the source
 --------------------
 To compile the example code simply run:
-    `gfortran -fcheck=all -fbackslash -o example.x ../surface_physics.f90 example.f90`
+
+`gfortran -fcheck=all -fbackslash -o example.x ../surface_physics.f90 example.f90`
+
+or use the `Makefile`:
+
+`make example.x`
+
+To run the example from scratch just do:
+
+`make run_example`
+    `
 
 Running the model
 -----------------
@@ -21,7 +31,7 @@ To run the model, use either one of the input files provided
 * c18\_input.txt 
 * c20\_input.txt (3652 time steps, unfiltered)
 
-The output must contains the 9 necessary forcing data, namely:
+The input files must contain the 9 necessary forcing data, namely:
 
 * snow fall rate [m/s]
 * rain fall rate [m/s]
@@ -44,11 +54,18 @@ surface melt, and surface accumulation.
 For comparison, to each forcing data, a validation file is provided containing
 the same variables as written to `example.out`.
 
+* c01\_output.txt (365 time steps, long-term 30-day miving average))
+* c05\_output.txt 
+* c06\_output.txt
+* c07\_output.txt
+* c11\_output.txt
+* c18\_output.txt 
+* c20\_output.txt (3652 time steps, unfiltered)
 
 Plotting Results
 ----------------
 To plot the calculated variables, a python script is attached (`numpy` and `matplotlib`
 need to be installed). The scripts also plot the attached validation data for comparison.
-In the comm,and line, type the following command:
+In the command line, type the following command:
 
 `python plot_example.py example.out c01_output.txt`
