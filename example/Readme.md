@@ -1,12 +1,13 @@
 EXAMPLE of SEMIC usage
 ======================
 Author: Mario Krapp
-Date: 2014/10/01
+Date created: 2014/10/01
+Last edit:    2014/10/07
 
 Compiling the source
 --------------------
 To compile the example code simply run:
-    `gfortran -fcheck=all -fbackslash -o example.x surface_physics.f90 example.f90`
+    `gfortran -fcheck=all -fbackslash -o example.x ../surface_physics.f90 example.f90`
 
 Running the model
 -----------------
