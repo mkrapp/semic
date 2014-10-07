@@ -23,7 +23,9 @@ program example
 
     integer :: i, l, n, day, year, ntime, nloop
 
-    character(len=256) :: input_forcing, output, validation
+    character(len=256) :: input_forcing, output, validation, arg, nml_file
+
+    logical :: file_exist
 
     double precision :: total_time, start, finish
 
@@ -41,7 +43,21 @@ program example
 
     total_time = 0.0d0
 
-    open(7,file='example.namelist')
+    ! check command line argument for namelist file
+    call get_command_argument(1,arg)
+    if (len_trim(arg) == 0) then
+        write(*,*) "\x1B[31mError:\x1B[0m Namelist file is missing."
+        call exit()
+    end if
+    nml_file = trim(arg)
+    inquire(file=nml_file, exist=file_exist)
+    if (.not. file_exist) then
+        write(*,*) "\x1B[31mError:\x1B[0m file  \x1B[4;37m", trim(nml_file), "\x1B[0m not found."
+        call exit()
+    end if
+    write(*,*) "\x1B[32mexample:\x1B[0m read namelist from file:", trim(nml_file)
+
+    open(7,file=nml_file)
     read(7,nml=driver)
     ! read input from file (forcing data)
     call read_forcing(input_forcing,forc,ntime)
@@ -51,7 +67,7 @@ program example
     open(2,file=trim(output),form='formatted')
 
     ! load parameters from namelist
-    call surface_physics_par_load(surface%par,'example.namelist')
+    call surface_physics_par_load(surface%par,trim(nml_file))
 
     ! allocate necessary arrays for surface_physics module
     call surface_alloc(surface%now,n)
