@@ -6,7 +6,7 @@
   output = "example.out",
 /
 &surface_physics
-  boundary = "alb" "melt" "",
+  boundary = "alb" "" "",
   tstic = 86400.,
   ceff = 2.0e6,
   csh    = 1.5e-3,
