@@ -106,6 +106,7 @@ program example
             if (surface%bnd%melt)    surface%now%melt    = vali%melt(day)
             if (surface%bnd%acc)     surface%now%acc     = vali%acc(day)
             if (surface%bnd%massbal) surface%now%massbal = vali%smb(day)
+            if (surface%bnd%hsnow)   surface%now%hsnow   = vali%hsnow(day)
 
             ! calculate prognostic and diagnsotic variables
             call cpu_time(start)

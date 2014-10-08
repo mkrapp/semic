@@ -14,11 +14,6 @@ or use the `Makefile`:
 
 `make example.x`
 
-To run the example from scratch just do:
-
-`make run_example`
-    `
-
 Running the model
 -----------------
 To run the model, use either one of the input files provided
@@ -62,6 +57,11 @@ the same variables as written to `example.out`.
 * c18\_output.txt 
 * c20\_output.txt (3652 time steps, unfiltered)
 
+The Fortran Namelist
+--------------------
+The file `example.namelist` allows you to modify the model parameters.
+If you also would like to replace one of the prognostic variables (i.e., albedo, surface temperature, melt, or surface mass balance), just add the name (`alb`, `tsurf`, `melt`, `massbal`) to the `boundary` parameter. 
+
 Plotting Results
 ----------------
 To plot the calculated variables, a python script is attached (`numpy` and `matplotlib`
@@ -69,3 +69,7 @@ need to be installed). The scripts also plot the attached validation data for co
 In the command line, type the following command:
 
 `python plot_example.py example.out c01_output.txt`
+
+or to to all steps at once (compile, run, and plot)
+
+`make run_example`
