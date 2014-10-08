@@ -26,12 +26,13 @@ module surface_physics
 
     ! Define all parameters needed for the surface module
     type param_class
-        character (len=256) :: name, boundary(30)
+        character (len=256) :: name, boundary(30), alb_scheme
         character (len=3)   :: method
         integer             :: nx
         double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,heff,amp,csh,tmin,tstic,clh
         double precision    :: pdd_sigma, pdd_b
         double precision    :: itm_cc, itm_t
+        double precision    :: tau_a, tau_f, w_crit
     end type
 
     type surface_state_class
@@ -97,6 +98,7 @@ contains
             ceff, tstic, amp, clh, &
             pdd_sigma, pdd_b, &
             itm_cc, itm_t, &
+            tau_a, tau_f, w_crit, &
             mmfac, Pmaxfrac
 
         ! ocean/land/ice mask
@@ -125,8 +127,12 @@ contains
 
         ! use method to calculate melt: "ebm", "itm", or "pdd"
         character(len=3) :: method
+        ! use albedo scheme "slater" or "isba"
+        character(len=6) :: alb_scheme
 
         method = dom%par%method
+
+        alb_scheme = dom%par%alb_scheme
 
         ! assign ocean/land/ice mask
         land_ice_ocean = dom%now%land_ice_ocean
@@ -162,11 +168,15 @@ contains
         pdd_b     = dom%par%pdd_b
         itm_cc    = dom%par%itm_cc
         itm_t     = dom%par%itm_t
+        tau_a     = dom%par%tau_a
+        tau_f     = dom%par%tau_f
+        w_crit    = dom%par%w_crit
 
         ! assign prognostic variables
-        tsurf = dom%now%tsurf
-        hsnow = dom%now%hsnow
-        alb   = dom%now%alb
+        tsurf      = dom%now%tsurf
+        hsnow      = dom%now%hsnow
+        alb        = dom%now%alb
+        alb_snow   = dom%now%alb_snow
 
         ! assign current forcing variables
         usurf  = dom%now%wind
@@ -300,10 +310,10 @@ contains
             end if
 
             ! refreezing as fraction of melt (increases with snow height)
+            f_rz = hsnow/(hsnow+hcrit)
             if (.not. bnd%refr) then
-                f_rz = hsnow/(hsnow+hcrit)
                 !f_rz = (1._dp-dexp(-hsnow))
-                !refr = f_rz*amin1(qcold/(rhow*clm),melt+rf)
+                !refr = f_rz*dmin1(qcold/(rhow*clm),melt+rf)
                 refrozen_rain = dmin1(qcold/(rhow*clm),rf)
                 refrozen_snow = f_rz*dmin1(qcold/(rhow*clm)-refrozen_rain,melt)
                 refr = refrozen_rain + refrozen_snow
@@ -318,25 +328,25 @@ contains
 
             ! 3) accumulation: smb = acc - abl
             if (.not. bnd%acc) then
-                !acc = sf - subl/rhow + refrozen_rain
-                acc = sf - subl/rhow + refr
+                acc = sf - subl/rhow + refrozen_rain
+                !acc = sf - subl/rhow + refr
                 !acc = massbal + melt
             end if
 
             ! 4) surface mass balance
             if (.not. bnd%massbal) then
-                !massbal = sf - subl/rhow + rf - runoff
-                massbal = acc - melt
+                massbal = sf - subl/rhow + rf - runoff
+                !massbal = acc - melt
             end if
 
             ! update ice/snow budget
             if (.not. bnd%hsnow) then
-                new_ice = refr*tstic 
+                !new_ice = refr*tstic 
                 where (land_ice_ocean .eq. 0.0_dp)
                     hsnow = 0.0_dp
                 else where
                     ! update snow height if smaller than 0: more melting than snow available -> melting ice
-                    hsnow = hsnow + (massbal-rf)*tstic
+                    hsnow = hsnow + (massbal)*tstic
                     ! remove ice if snow would become negative
                     where (hsnow < 0.0_dp)
                         new_ice =  new_ice + hsnow
@@ -361,14 +371,19 @@ contains
             end if
 
             if (.not. bnd%alb) then 
-                call albedo_slater(alb_snow,tsurf,tmin,alb_smax,alb_smin)
+                if (trim(alb_scheme) .eq. "slater") then
+                    call albedo_slater(alb_snow,tsurf,tmin,alb_smax,alb_smin)
+                end if
                 !call albedo_denby(alb_snow,melt,alb_smax,alb_smin)
-                !call albedo_isba(alb_snow,sf,melt,tstic,tstic,0.008_dp,0.24_dp,rhow,alb_smin,alb_smax)
+                if (trim(alb_scheme) .eq. "isba") then
+                    call albedo_isba(alb_snow,sf,melt,tstic,tstic,tau_a,tau_f,&
+                                     w_crit,alb_smin,alb_smax)
+                end if
                 where (land_ice_ocean .eq. 2.0_dp)
-                    alb = albr + hsnow/(hsnow + hcrit)*(alb_snow - albr)
+                    alb = albr + f_rz*(alb_snow - albr)
                 end where
                 where (land_ice_ocean .eq. 1.0_dp)
-                    alb = albl + hsnow/(hsnow + hcrit)*(alb_snow - albl)
+                    alb = albl + f_rz*(alb_snow - albl)
                 end where
                 where (land_ice_ocean .eq. 0.0_dp)
                     alb = 0.06_dp
@@ -471,6 +486,7 @@ contains
         if (.not. bnd%subl)    dom%now%subl    = subl/rhow
         if (.not. bnd%hsnow)   dom%now%hsnow   = hsnow
         dom%now%hice    = new_ice + dom%now%hice
+        dom%now%alb_snow = alb_snow
 
     end subroutine surface_mass_balance
 
@@ -507,14 +523,13 @@ contains
         end if
     end subroutine diurnal_cycle
 
-    elemental subroutine albedo_isba(alb,sf,melt,tstic,tau,tau_a,tau_f,rhow,alb_smin,alb_smax)
+    elemental subroutine albedo_isba(alb,sf,melt,tstic,tau,tau_a,tau_f,w_crn,alb_smin,alb_smax)
 
         double precision, intent(in out) :: alb
         double precision, intent(in) :: sf, melt
-        double precision, intent(in) :: tstic, tau, tau_a, tau_f, rhow, alb_smin, alb_smax
+        double precision, intent(in) :: tstic, tau, tau_a, tau_f, alb_smin, alb_smax, w_crn
         double precision :: alb_dry, alb_wet, alb_new
         double precision :: w_alb
-        double precision, parameter :: w_crn = 10.0_dp
         ! where no melting occurs, albedo decreases linearly
         alb_dry = alb - tau_a*tstic/tau
         !where melting occurs, albedo decreases exponentially
@@ -853,21 +868,23 @@ contains
 
         type(param_class) :: par
         character(len=*)    :: filename 
-        character(len=256)  :: boundary(30)
+        character(len=256)  :: boundary(30), alb_scheme
         character (len=3)   :: method 
 
         ! Declaration of namelist parameters
         double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,  &
                                amp,csh,clh,tmin,&
                                tstic, &
+                               tau_a, tau_f, w_crit, &
                                pdd_sigma, pdd_b, &
                                itm_cc, itm_t
 
         namelist /surface_physics/ boundary,tstic,ceff,csh,clh,alb_smax,alb_smin,&
                                    albr,albl,tmin,hcrit,amp,&
+                                   tau_a, tau_f, w_crit, &
                                    pdd_sigma,pdd_b,&
                                    itm_cc, itm_t, &
-                                   method
+                                   method, alb_scheme
 
         ! Store initial values in local parameter values 
         boundary      = par%boundary  ! List of boundary variables
@@ -883,12 +900,16 @@ contains
         tmin          = par%tmin      ! minimum albedo-affecting temperature
         tstic         = par%tstic
         method        = par%method 
+        alb_scheme    = par%alb_scheme 
         ! PDD
         pdd_sigma     = par%pdd_sigma
         pdd_b         = par%pdd_b
         ! ITM
         itm_cc        = par%itm_cc
         itm_t         = par%itm_t
+        tau_a         = par%tau_a  
+        tau_f         = par%tau_f  
+        w_crit        = par%w_crit
 
         ! Read parameters from input namelist file
         open(7,file=trim(filename))
@@ -910,10 +931,14 @@ contains
         par%tmin       = tmin           ! minimum albedo-affecting temperature
         par%tstic      = tstic
         par%method     = method
+        par%alb_scheme = alb_scheme
         par%pdd_sigma  = pdd_sigma
         par%pdd_b      = pdd_b
         par%itm_cc     = itm_cc
         par%itm_t      = itm_t
+        par%tau_a      = tau_a
+        par%tau_f      = tau_f
+        par%w_crit     = w_crit
 
         return
 
