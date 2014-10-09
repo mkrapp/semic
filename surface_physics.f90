@@ -1007,46 +1007,46 @@ contains
         do q = 1,size(par%boundary)
             if ((len_trim(par%boundary(q)) .ne. 256) .and. &
                 (len_trim(par%boundary(q)) .ne. 0)) then
-                write(*,'(2A)') 'boundary ', trim(par%boundary(q))
+                write(*,'(2a)') 'boundary ', trim(par%boundary(q))
             end if
         end do
-        write(*,'(2A)')     'alb_scheme ', trim(par%alb_scheme)
-        write(*,'(2A)')     'method     ', trim(par%method)
-        write(*,'(AI5)')    'nx         ', par%nx
-        write(*,'(AG10.4)') 'ceff       ', par%ceff
-        write(*,'(AG10.4)') 'albr       ', par%albr
-        write(*,'(AG10.4)') 'albl       ', par%albl
-        write(*,'(AG10.4)') 'alb_smax   ', par%alb_smax
-        write(*,'(AG10.4)') 'alb_smin   ', par%alb_smin
-        write(*,'(AG10.4)') 'hcrit      ', par%hcrit
-        write(*,'(AG10.4)') 'amp        ', par%amp
-        write(*,'(AG10.4)') 'csh        ', par%csh
-        write(*,'(AG10.4)') 'tmin       ', par%tmin
-        write(*,'(AG10.4)') 'tstic      ', par%tstic
-        write(*,'(AG10.4)') 'clh        ', par%clh
-        write(*,'(AG10.4)') 'pdd_sigma  ', par%pdd_sigma
-        write(*,'(AG10.4)') 'pdd_b      ', par%pdd_b
-        write(*,'(AG10.4)') 'itm_cc     ', par%itm_cc
-        write(*,'(AG10.4)') 'itm_t      ', par%itm_t
-        write(*,'(AG10.4)') 'tau_a      ', par%tau_a
-        write(*,'(AG10.4)') 'tau_f      ', par%tau_f
-        write(*,'(AG10.4)') 'w_crit     ', par%w_crit
+        write(*,'(2a)')     'alb_scheme ', trim(par%alb_scheme)
+        write(*,'(2a)')     'method     ', trim(par%method)
+        write(*,'(a,i5)')    'nx         ', par%nx
+        write(*,'(a,g13.6)') 'ceff       ', par%ceff
+        write(*,'(a,g13.6)') 'albr       ', par%albr
+        write(*,'(a,g13.6)') 'albl       ', par%albl
+        write(*,'(a,g13.6)') 'alb_smax   ', par%alb_smax
+        write(*,'(a,g13.6)') 'alb_smin   ', par%alb_smin
+        write(*,'(a,g13.6)') 'hcrit      ', par%hcrit
+        write(*,'(a,g13.6)') 'amp        ', par%amp
+        write(*,'(a,g13.6)') 'csh        ', par%csh
+        write(*,'(a,g13.6)') 'tmin       ', par%tmin
+        write(*,'(a,g13.6)') 'tstic      ', par%tstic
+        write(*,'(a,g13.6)') 'clh        ', par%clh
+        write(*,'(a,g13.6)') 'pdd_sigma  ', par%pdd_sigma
+        write(*,'(a,g13.6)') 'pdd_b      ', par%pdd_b
+        write(*,'(a,g13.6)') 'itm_cc     ', par%itm_cc
+        write(*,'(a,g13.6)') 'itm_t      ', par%itm_t
+        write(*,'(a,g13.6)') 'tau_a      ', par%tau_a
+        write(*,'(a,g13.6)') 'tau_f      ', par%tau_f
+        write(*,'(a,g13.6)') 'w_crit     ', par%w_crit
 
     end subroutine
     
     
     subroutine print_boundary_opt(bnd)
         type(boundary_opt_class) :: bnd
-        write(*,'(AL1)') 'tsurf   ', bnd%tsurf
-        write(*,'(AL1)') 'hsnow   ', bnd%hsnow
-        write(*,'(AL1)') 'alb     ', bnd%alb
-        write(*,'(AL1)') 'melt    ', bnd%melt
-        write(*,'(AL1)') 'refr    ', bnd%refr
-        write(*,'(AL1)') 'acc     ', bnd%acc
-        write(*,'(AL1)') 'lhf     ', bnd%lhf
-        write(*,'(AL1)') 'shf     ', bnd%shf
-        write(*,'(AL1)') 'subl    ', bnd%subl
-        write(*,'(AL1)') 'massbal ', bnd%massbal
+        write(*,'(a,l1)') 'tsurf   ', bnd%tsurf
+        write(*,'(a,l1)') 'hsnow   ', bnd%hsnow
+        write(*,'(a,l1)') 'alb     ', bnd%alb
+        write(*,'(a,l1)') 'melt    ', bnd%melt
+        write(*,'(a,l1)') 'refr    ', bnd%refr
+        write(*,'(a,l1)') 'acc     ', bnd%acc
+        write(*,'(a,l1)') 'lhf     ', bnd%lhf
+        write(*,'(a,l1)') 'shf     ', bnd%shf
+        write(*,'(a,l1)') 'subl    ', bnd%subl
+        write(*,'(a,l1)') 'massbal ', bnd%massbal
     end subroutine
 
 
