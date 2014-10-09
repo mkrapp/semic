@@ -29,7 +29,7 @@ module surface_physics
         character (len=256) :: name, boundary(30), alb_scheme
         character (len=3)   :: method
         integer             :: nx
-        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,heff,amp,csh,tmin,tstic,clh
+        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,amp,csh,tmin,tstic,clh
         double precision    :: pdd_sigma, pdd_b
         double precision    :: itm_cc, itm_t
         double precision    :: tau_a, tau_f, w_crit
@@ -64,6 +64,7 @@ module surface_physics
     public :: surface_physics_class
     public :: surface_physics_par_load, surface_alloc, surface_dealloc
     public :: surface_boundary_define, surface_physics_average
+    public :: print_param, print_boundary_opt
 
 contains
 
@@ -94,7 +95,7 @@ contains
         integer, intent(in) :: day, year
         
         ! physical parameters used in the different parameterizations
-        double precision :: tmin, albr, albl, alb_smax, alb_smin, hcrit, heff, csh, &
+        double precision :: tmin, albr, albl, alb_smax, alb_smin, hcrit, csh, &
             ceff, tstic, amp, clh, &
             pdd_sigma, pdd_b, &
             itm_cc, itm_t, &
@@ -158,7 +159,6 @@ contains
         alb_smax  = dom%par%alb_smax
         alb_smin  = dom%par%alb_smin
         hcrit     = dom%par%hcrit
-        heff      = dom%par%heff
         csh       = dom%par%csh
         tstic     = dom%par%tstic
         ceff      = dom%par%ceff
@@ -997,6 +997,57 @@ contains
         return 
 
     end subroutine surface_boundary_define
+
+
+    subroutine print_param(par)
+        
+        type(param_class) :: par
+        integer :: q
+
+        do q = 1,size(par%boundary)
+            if ((len_trim(par%boundary(q)) .ne. 256) .and. &
+                (len_trim(par%boundary(q)) .ne. 0)) then
+                write(*,'(2A)') 'boundary ', trim(par%boundary(q))
+            end if
+        end do
+        write(*,'(2A)')     'alb_scheme ', trim(par%alb_scheme)
+        write(*,'(2A)')     'method     ', trim(par%method)
+        write(*,'(AI5)')    'nx         ', par%nx
+        write(*,'(AG10.4)') 'ceff       ', par%ceff
+        write(*,'(AG10.4)') 'albr       ', par%albr
+        write(*,'(AG10.4)') 'albl       ', par%albl
+        write(*,'(AG10.4)') 'alb_smax   ', par%alb_smax
+        write(*,'(AG10.4)') 'alb_smin   ', par%alb_smin
+        write(*,'(AG10.4)') 'hcrit      ', par%hcrit
+        write(*,'(AG10.4)') 'amp        ', par%amp
+        write(*,'(AG10.4)') 'csh        ', par%csh
+        write(*,'(AG10.4)') 'tmin       ', par%tmin
+        write(*,'(AG10.4)') 'tstic      ', par%tstic
+        write(*,'(AG10.4)') 'clh        ', par%clh
+        write(*,'(AG10.4)') 'pdd_sigma  ', par%pdd_sigma
+        write(*,'(AG10.4)') 'pdd_b      ', par%pdd_b
+        write(*,'(AG10.4)') 'itm_cc     ', par%itm_cc
+        write(*,'(AG10.4)') 'itm_t      ', par%itm_t
+        write(*,'(AG10.4)') 'tau_a      ', par%tau_a
+        write(*,'(AG10.4)') 'tau_f      ', par%tau_f
+        write(*,'(AG10.4)') 'w_crit     ', par%w_crit
+
+    end subroutine
+    
+    
+    subroutine print_boundary_opt(bnd)
+        type(boundary_opt_class) :: bnd
+        write(*,'(AL1)') 'tsurf   ', bnd%tsurf
+        write(*,'(AL1)') 'hsnow   ', bnd%hsnow
+        write(*,'(AL1)') 'alb     ', bnd%alb
+        write(*,'(AL1)') 'melt    ', bnd%melt
+        write(*,'(AL1)') 'refr    ', bnd%refr
+        write(*,'(AL1)') 'acc     ', bnd%acc
+        write(*,'(AL1)') 'lhf     ', bnd%lhf
+        write(*,'(AL1)') 'shf     ', bnd%shf
+        write(*,'(AL1)') 'subl    ', bnd%subl
+        write(*,'(AL1)') 'massbal ', bnd%massbal
+    end subroutine
 
 
 end module surface_physics
