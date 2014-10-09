@@ -68,6 +68,7 @@ program example
 
     ! load parameters from namelist
     call surface_physics_par_load(surface%par,trim(nml_file))
+    call print_param(surface%par)
 
     ! allocate necessary arrays for surface_physics module
     call surface_alloc(surface%now,n)
@@ -82,6 +83,7 @@ program example
 
     ! define boundary conditions (not used, here!)
     call surface_boundary_define(surface%bnd,surface%par%boundary)
+    call print_boundary_opt(surface%bnd)
 
     write(*,*) "\x1B[32mexample:\x1B[0m Write output to file \x1B[4;37m", trim(output), "\x1B[0m"
     write(2,*) '# tsurf(K)      alb      hsnow(m)      smb(m/s)     melt(m/s)      acc(m/s)'
