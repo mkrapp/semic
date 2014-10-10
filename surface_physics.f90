@@ -346,7 +346,7 @@ contains
                     hsnow = 0.0_dp
                 else where
                     ! update snow height if smaller than 0: more melting than snow available -> melting ice
-                    hsnow = hsnow + (massbal)*tstic
+                    hsnow = hsnow + massbal*tstic
                     ! remove ice if snow would become negative
                     where (hsnow < 0.0_dp)
                         new_ice =  new_ice + hsnow
@@ -366,7 +366,7 @@ contains
                 where (land_ice_ocean == 0.0_dp)
                     tsurf = tsurf_new
                 else where
-                    tsurf = tsurf_new - (melt - refr)*rhow*clm*tstic/ceff
+                    tsurf = tsurf_new - melt*rhow*clm*tstic/ceff
                 end where
             end if
 
