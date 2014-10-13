@@ -1,7 +1,7 @@
 .PHONY: clean run_example
 FC       = gfortran
 #FFLAGS   = -Og -p -fcheck=all -fbackslash -Wall -Wextra -fbounds-check -fbacktrace
-FFLAGS   = -O2 -fbackslash
+FFLAGS   = -O2 -fbackslash -fcheck=all
 
 example.x: ../surface_physics.f90 example.f90
 	$(FC) $(FFLAGS) -o $@ $^
