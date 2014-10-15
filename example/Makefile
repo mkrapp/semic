@@ -3,10 +3,9 @@ FC       = gfortran
 #FFLAGS   = -Og -p -fcheck=all -fbackslash -Wall -Wextra -fbounds-check -fbacktrace
 FFLAGS   = -O2 -fbackslash -fcheck=all
 
-example.x: ../surface_physics.f90 example.f90
+example.x: ../surface_physics.f90 ../utils.f90 example.f90
 	$(FC) $(FFLAGS) -o $@ $^
 	
-
 output = $(shell grep vali example.namelist | awk -F '"' '{print $$2}')
 run_example: example.x
 	./example.x example.namelist
