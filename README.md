@@ -13,7 +13,7 @@ An example on how to run *SEMIC* is provided in the `example` directory.
 Optimization
 ------------
 
-For model parameter optimization, have a look into the `optimization` directory.
+For model parameter optimization, have a look into the `optimize` directory.
 
 
 References
