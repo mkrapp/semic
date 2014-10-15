@@ -1,0 +1,6 @@
+&driver
+  nloop = 10,
+  ntime = 365,
+  input_forcing = "../example/data/c18_input.txt",
+  validation = "../example/data/c18_output.txt",
+/
