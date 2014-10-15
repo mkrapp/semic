@@ -8,7 +8,7 @@ Compiling the source
 --------------------
 To compile the example code simply run:
 
-`gfortran -fcheck=all -fbackslash -o example.x ../surface_physics.f90 example.f90`
+`gfortran -fcheck=all -fbackslash -o example.x ../surface_physics.f90 ../utils.f90 example.f90`
 
 or use the `Makefile`:
 
