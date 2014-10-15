@@ -16,7 +16,7 @@ or use the `Makefile`:
 
 Running the model
 -----------------
-To run the model, use either one of the input files provided
+To run the model, use either one of the input files provided in the `data` directory
 
 * c01\_input.txt (365 time steps, long-term 30-day miving average))
 * c05\_input.txt 
@@ -47,7 +47,7 @@ surface temperature, surface albedo, snow height, surface mass balance,
 surface melt, and surface accumulation.
 
 For comparison, to each forcing data, a validation file is provided containing
-the same variables as written to `example.out`.
+the same variables as written to `example.out` (also in the directory `data`).
 
 * c01\_output.txt (365 time steps, long-term 30-day miving average))
 * c05\_output.txt 
