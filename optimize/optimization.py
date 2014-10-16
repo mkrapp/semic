@@ -7,6 +7,7 @@ import argparse
 
 import particle_swarm_optimization as pso
 import evolution_strategies as es
+import cultural_algorithm as ca
 import random_search as rs
 import plot_costs as pc
 
@@ -26,6 +27,12 @@ def write_namelist(fname,particle):
     	f.write('  ' + names[j] + ' = %.8f' % particle["pos"][j] + ',\n')
     f.write('  method = "ebm",\n')
     f.write('  alb_scheme = "slater",\n')
+    f.write('/\n')
+    f.write('&smb_output\n')
+    f.write('  file_timser  = "",\n')
+    f.write('  file_daily   = "",\n')
+    f.write('  file_diag    = "",\n')
+    f.write('  file_monthly = "",\n')
     f.write('/\n')
     f.close()
 
@@ -125,10 +132,9 @@ def search_es(max_gens, search_space, pop_size, num_children, prefix):
     	    union = children+population
     	    union = sorted(union, key=lambda k: k["fitness"])
     	    if union[0]["fitness"] < best["fitness"]: best = union[0]
-    	    population = union[:pop_size]
+            population = union[:pop_size]
     	    f.write(str(gen)+" ")
-    	    
-    	    [f.write("%.6g "%p) for p in best["pos"]]
+            [f.write("%.6g "%p) for p in best["pos"]]
     	    f.write("\n")
     	    print " > gen %i, fitness=%.4g" % (gen, best["fitness"])
     except KeyboardInterrupt:
@@ -136,6 +142,51 @@ def search_es(max_gens, search_space, pop_size, num_children, prefix):
     	pass
     f.close()
     return best
+
+def search_ca(max_gens, search_space, pop_size, num_accepted, prefix):
+    tmpdir = tmp.gettempdir()
+    f = open(prefix+'cost.txt','w')
+    f.write("# gen ")
+    for n in names:
+        f.write(n+" ")
+    f.write("\n")
+    # initialize
+    pop = [{"pos" : ca.random_vector(search_space) , "id" : i } for i in range(pop_size)]
+    belief_space = ca.initialize_beliefspace(search_space)  
+    # evaluate
+    cost = run_particles(pop,tmpdir+'/'+prefix)
+    for p in pop:
+        p["fitness"] = cost[p["id"]]
+    best = sorted(pop, key=lambda k: k["fitness"])[0]
+    # update situational knowledge
+    ca.update_beliefspace_situational(belief_space, best)
+    try:
+        for gen in range(max_gens):
+            # create next generation
+            children = [ ca.mutate_with_inf(pop[i], belief_space, search_space, id=i) for i in range(pop_size)]
+            # evaluate
+            cost = run_particles(children,tmpdir+'/'+prefix)
+            for c in children:
+                c["fitness"] = cost[c["id"]]
+            best = sorted(children, key=lambda k: k["fitness"])[0]
+            # update situational knowledge
+            ca.update_beliefspace_situational(belief_space, best)
+            # select next generation    
+            pop = [ca.binary_tournament(children + pop) for i in range(pop_size)]
+            # update normative knowledge
+            pop = sorted(pop, key=lambda k: k["fitness"])
+            acccepted = pop[0:num_accepted]
+            ca.update_beliefspace_normative(belief_space, acccepted)
+            # user feedback
+            f.write(str(gen)+" ")
+            [f.write("%.6g "%p) for p in belief_space["situational"]["pos"]]
+            f.write("\n")
+            print " > gen %i, f=%.4g" % (gen, belief_space["situational"]["fitness"])
+    except KeyboardInterrupt:
+        print "\033[91mInterruption by user. Exiting...\033[0m"
+    	pass
+    f.close()
+    return belief_space["situational"]
 
 if __name__ == "__main__":
     
@@ -167,6 +218,7 @@ if __name__ == "__main__":
         if args.save and args.plot: pc.plot_costs(fnm,savefig=True) 
         if args.save and not args.plot: pc.plot_costs(fnm,show=False,savefig=True) 
 
+
     def run_es(args):
         max_gens = args.max_gens
         pop_size = args.pop_size
@@ -186,6 +238,17 @@ if __name__ == "__main__":
         best = search_pso(max_gens, search_space, vel_space, pop_size, 0.0, 0.0, 'pso_')
         print  "done! Solution: f = %.4g, s =" % best["cost"], best["pos"]
         plot(args,'pso_cost.txt')
+
+
+    def run_ca(args):
+        max_gens = args.max_gens
+        pop_size = args.pop_size
+        num_accepted = args.num_accepted
+        print 'Run Cultural Algorithm for %i generations of population with size %i and from this the top %i as accepted knowledge' \
+              % (max_gens, pop_size, num_accepted)
+        best = search_ca(max_gens, search_space, pop_size, num_accepted, 'ca_')
+        print  "done! Solution: f = %.4g, s =" % best["fitness"], best["pos"]
+        plot(args,'ca_cost.txt')
 
 
     def run_rs(args):
@@ -208,6 +271,14 @@ if __name__ == "__main__":
     es_parser.add_argument('--save', help='Save the optimal parameter matrix.', action='store_true', default=False)
     es_parser.set_defaults(func=run_es)
     
+    ca_parser = sub_parser.add_parser('ca',help='Cultural Algorithm')
+    ca_parser.add_argument('--max-gens','-g', help='Maximum number of generations (default=%(default)s).',type=int, default=200)
+    ca_parser.add_argument('--pop-size','-p', help='Size of population (default=%(default)s).',type=int, default=100)
+    ca_parser.add_argument('--num-accepted','-n', help='Number of top solutions accepted as cultural knowledge (default=%(default)s).',type=int, default=20)
+    ca_parser.add_argument('--plot', help='Plot the optimal parameter matrix.', action='store_true', default=False)
+    ca_parser.add_argument('--save', help='Save the optimal parameter matrix.', action='store_true', default=False)
+    ca_parser.set_defaults(func=run_ca)
+
     pso_parser = sub_parser.add_parser('pso',help='Particle Swarm Optimization')
     pso_parser.add_argument('--max-gens','-g', help='Maximum number of generations (default=%(default)s).',type=int, default=100)
     pso_parser.add_argument('--pop-size','-p', help='Size of population (default=%(default)s).',type=int, default=30)
