@@ -20,7 +20,7 @@ def write_namelist(fname,particle):
     f.write('  tstic = 86400.,\n')
     f.write('  ceff = 2.0e6,\n')
     f.write('  csh = 1.5e-3,\n')
-    f.write('  clh = 1.5e-4,\n')
+    f.write('  clh = 3.0e-4,\n')
     f.write('  albl = -999,\n')
     # loop through parameter values
     for j in range(0,k):
@@ -59,10 +59,10 @@ def run_particles(pop, nml_prefix):
         cost[p["id"]] = np.loadtxt(output)
     return cost
 
-def search_rs(search_space, max_iter, prefix):
+def search_rs(search_space, max_iter, prefix, inc=None):
     tmpdir = tmp.gettempdir()
     f = open(prefix+'cost.txt','w')
-    f.write("# iter ")
+    f.write("# iter fitness ")
     for n in names:
         f.write(n+" ")
     f.write("\n")
@@ -71,14 +71,16 @@ def search_rs(search_space, max_iter, prefix):
         for i in range(max_iter):
             candidate = {}
             candidate["id"] = 0
-            candidate["pos"] = rs.random_vector(search_space)
+            candidate["pos"] = rs.random_vector(search_space, inc)
             cost = run_particles([candidate],tmpdir+'/'+prefix)
             candidate["cost"] = cost[candidate["id"]]
             if best is None or candidate["cost"] < best["cost"]: best = candidate
-            f.write(str(i)+" ")
+            f.write("%i %.6g " % (i, best["cost"]))
             [f.write("%.6g "%p) for p in best["pos"]]
             f.write("\n")
             print " > iteration %i, best=%.4g" % (i, best["cost"])
+            print names
+            print best["pos"]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -89,7 +91,7 @@ def search_rs(search_space, max_iter, prefix):
 def search_pso(max_gens, search_space, vel_space, pop_size, c1, c2, prefix):
     tmpdir = tmp.gettempdir()
     f = open(prefix+'cost.txt','w')
-    f.write("# gen ")
+    f.write("# gen fitness ")
     for n in names:
         f.write(n+" ")
     f.write("\n")
@@ -104,10 +106,12 @@ def search_pso(max_gens, search_space, vel_space, pop_size, c1, c2, prefix):
     	        particle["cost"] = cost[particle["id"]]
     	        pso.update_best_position(particle)
     	    gbest = pso.get_global_best(pop, gbest)
-    	    f.write(str(gen)+" ")
+            f.write("%i %.6g " % (gen, gbest["cost"]))
     	    [f.write("%.6g "%p) for p in gbest["pos"]]
     	    f.write("\n")
     	    print " > gen %i, fitness=%.6g" % (gen, gbest["cost"])
+            print names
+            print gbest["pos"]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -117,7 +121,7 @@ def search_pso(max_gens, search_space, vel_space, pop_size, c1, c2, prefix):
 def search_es(max_gens, search_space, pop_size, num_children, prefix):
     tmpdir = tmp.gettempdir()
     f = open(prefix+'cost.txt','w')
-    f.write("# gen ")
+    f.write("# gen fitness ")
     for n in names:
         f.write(n+" ")
     f.write("\n")
@@ -133,10 +137,12 @@ def search_es(max_gens, search_space, pop_size, num_children, prefix):
     	    union = sorted(union, key=lambda k: k["fitness"])
     	    if union[0]["fitness"] < best["fitness"]: best = union[0]
             population = union[:pop_size]
-    	    f.write(str(gen)+" ")
+            f.write("%i %.6g " % (gen, best["fitness"]))
             [f.write("%.6g "%p) for p in best["pos"]]
     	    f.write("\n")
     	    print " > gen %i, fitness=%.4g" % (gen, best["fitness"])
+            print names
+            print best["pos"]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -146,7 +152,7 @@ def search_es(max_gens, search_space, pop_size, num_children, prefix):
 def search_ca(max_gens, search_space, pop_size, num_accepted, prefix):
     tmpdir = tmp.gettempdir()
     f = open(prefix+'cost.txt','w')
-    f.write("# gen ")
+    f.write("# gen fitness ")
     for n in names:
         f.write(n+" ")
     f.write("\n")
@@ -178,10 +184,12 @@ def search_ca(max_gens, search_space, pop_size, num_accepted, prefix):
             acccepted = pop[0:num_accepted]
             ca.update_beliefspace_normative(belief_space, acccepted)
             # user feedback
-            f.write(str(gen)+" ")
+            f.write("%i %.6g " % (gen, belief_space["situational"]["fitness"]))
             [f.write("%.6g "%p) for p in belief_space["situational"]["pos"]]
             f.write("\n")
             print " > gen %i, f=%.4g" % (gen, belief_space["situational"]["fitness"])
+            print names
+            print belief_space["situational"]["pos"]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -203,15 +211,21 @@ if __name__ == "__main__":
     for i in range(0,k):
         names.append(params[i][0])
 
-    # create parameter space with respect to ranges provided in the list 'namelist.ranges'
-    search_space = [[float(x) for x in p[1:]] for p in params]
-    
-    # create velocity space
-    vel_space = generate_vel_space(search_space,frac=1)
-    
     #
     # Parsing command line arguments
     #
+
+    inc=None
+    if len(params[0]) == 4:
+        inc = [params[i][-1] for i in range(len(params))]
+        # create parameter space with respect to ranges provided in the list 'namelist.ranges'
+        search_space = [[float(x) for x in p[1:-1]] for p in params]
+    else:
+        search_space = [[float(x) for x in p[1:]] for p in params]
+
+    # create velocity space
+    vel_space = generate_vel_space(search_space,frac=1)
+    
 
     def plot(args,fnm):
         if args.plot: pc.plot_costs(fnm) 
@@ -254,7 +268,7 @@ if __name__ == "__main__":
     def run_rs(args):
         max_iter = args.max_iter
         print 'Run Random Search for %i iterations' % max_iter
-        best = search_rs(search_space, max_iter, 'rs_')
+        best = search_rs(search_space, max_iter, 'rs_', inc)
         print  "Done! Best solution: f = %.4g, v =" % best["cost"], best["pos"]
         plot(args,'rs_cost.txt')
 

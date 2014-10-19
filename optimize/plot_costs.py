@@ -24,6 +24,7 @@ def rdcsv(name):
 
 def plot_costs(fnm,show=True,savefig=False):
     params = rdcsv('namelist.ranges')
+    print params
     
     par_names=[]
     for i in range(0,len(params)):
@@ -40,8 +41,8 @@ def plot_costs(fnm,show=True,savefig=False):
         i = 0
         for p in par_names:
             if (j < i):
-                px = data[i+1,:]
-                py = data[j+1,:]
+                px = data[i+2,:]
+                py = data[j+2,:]
                 axarr[i,j].plot(px,py,'ko-',alpha=0.1,mew=0)
                 axarr[i,j].plot(px[-1],py[-1],'rs',alpha=0.5,markersize=7,mew=0)
                 axarr[i,j].set_xlabel(par_names[i])
