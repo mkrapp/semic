@@ -96,6 +96,9 @@ def search_pso(max_gens, search_space, vel_space, pop_size, c1, c2, prefix):
         f.write(n+" ")
     f.write("\n")
     pop = [pso.create_particle(search_space, vel_space, id=i) for i in range(pop_size)]
+    cost = run_particles(pop,tmpdir+'/'+prefix)
+    for p in pop:
+        p["fitness"] = cost[p["id"]]
     gbest = pso.get_global_best(pop)
     try:
     	for gen in range(max_gens):
@@ -125,7 +128,10 @@ def search_es(max_gens, search_space, pop_size, num_children, prefix):
     for n in names:
         f.write(n+" ")
     f.write("\n")
-    population = es.init_population(search_space, pop_size)
+    population = es.init_population(search_space, pop_size, id=True)
+    cost = run_particles(population,tmpdir+'/'+prefix)
+    for p in population:
+        p["fitness"] = cost[p["id"]]
     best = sorted(population, key=lambda k: k["fitness"])[0]
     try:
     	for gen in range(max_gens):

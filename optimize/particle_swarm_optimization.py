@@ -26,7 +26,7 @@ def create_particle(search_space, vel_space, id=None):
     particle = {}
     if id is not None: particle["id"] = id
     particle["pos"]    = random_vector(search_space)
-    particle["cost"]   = objective_function(particle["pos"])
+    particle["cost"]   = 1.e40
     particle["b_pos"]  = list(particle["pos"])
     particle["b_cost"] = particle["cost"]
     particle["vel"]    = random_vector(vel_space)
@@ -69,6 +69,8 @@ def update_best_position(part):
 
 def search(max_gens, search_space, vel_space, pop_size, c1, c2):
     pop = [create_particle(search_space, vel_space) for i in range(pop_size)]
+    for p in pop:
+        p["cost"] = objective_function(p["pos"])
     gbest = get_global_best(pop)
     for gen in range(max_gens):
         for particle in pop:
