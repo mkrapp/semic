@@ -44,17 +44,19 @@ def mutate(par, minmax, id=None):
     child["strategy"] = mutate_strategy(par["strategy"])
     return child
 
-def init_population(minmax, pop_size):
+def init_population(minmax, pop_size, id=False):
     strategy = [[0, (minmax[i][1]-minmax[i][0]) * 0.05] for i in range(len(minmax))]
     pop = [{} for i in range(pop_size)]
-    for p in pop:
+    for i, p in enumerate(pop):
         p["pos"] = random_vector(minmax)
-	p["strategy"] = random_vector(strategy)
-        p["fitness"] = objective_function(p["pos"])
+        p["strategy"] = random_vector(strategy)
+        if id: p["id"] = i
     return pop
 
 def search(max_gens, search_space, pop_size, num_children):
     population = init_population(search_space, pop_size)
+    for p in population:
+        p["fitness"] = objective_function(p["pos"])
     best = sorted(population, key=lambda k: k["fitness"])[0]
     for gen in range(max_gens):
         children = [mutate(population[i], search_space) for i in range(num_children)]
