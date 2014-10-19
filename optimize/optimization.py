@@ -9,6 +9,7 @@ import particle_swarm_optimization as pso
 import evolution_strategies as es
 import cultural_algorithm as ca
 import random_search as rs
+import harmony_search as hs
 import plot_costs as pc
 
 
@@ -202,6 +203,41 @@ def search_ca(max_gens, search_space, pop_size, num_accepted, prefix):
     f.close()
     return belief_space["situational"]
 
+def search_hs(search_space, max_iter, mem_size, consid_rate, adjust_rate, nrange, prefix):
+    tmpdir = tmp.gettempdir()
+    f = open(prefix+'cost.txt','w')
+    f.write("# gen fitness ")
+    for n in names:
+        f.write(n+" ")
+    f.write("\n")
+    memory = [hs.create_random_harmony(search_space,id=i) for i in range(mem_size*3)]
+    cost = run_particles(memory,tmpdir+'/'+prefix)
+    for m in memory:
+        m["fitness"] = cost[m["id"]]
+    memory = sorted(memory, key=lambda k: k["fitness"])[:mem_size]
+    best = memory[0]
+    try:
+        for iter in range(max_iter):
+            harm = hs.create_harmony(search_space, memory, consid_rate, adjust_rate, nrange)
+            harm["id"] = 0
+            cost = run_particles([harm],tmpdir+'/'+prefix)
+            harm["fitness"] = cost[harm["id"]]
+            if harm["fitness"] < best["fitness"]: best = harm 
+            memory.append(harm)
+            memory = sorted(memory, key=lambda k: k["fitness"])
+            del memory[-1]
+            f.write("%i %.6g " % (iter, best["fitness"]))
+            [f.write("%.6g "%p) for p in best["pos"]]
+    	    f.write("\n")
+            print names
+            print best["pos"]
+            print " > iteration %i, fitness=%.4g" % (iter, best["fitness"])
+    except KeyboardInterrupt:
+        print "\033[91mInterruption by user. Exiting...\033[0m"
+    	pass
+    f.close()
+    return best
+
 if __name__ == "__main__":
     
     #Get information on parameters and ranges from user file
@@ -278,6 +314,17 @@ if __name__ == "__main__":
         print  "Done! Best solution: f = %.4g, v =" % best["cost"], best["pos"]
         plot(args,'rs_cost.txt')
 
+    def run_hs(args):
+        mem_size = args.mem_size
+        consid_rate = args.consid_rate
+        adjust_rate = args.adjust_rate
+        nrange = args.range
+        max_iter = args.max_iter
+        best = search_hs(search_space, max_iter, mem_size, consid_rate, adjust_rate, nrange, 'hs_')
+        print  "done! Solution: f = %.4g, s =" % best["fitness"], best["pos"]
+        plot(args,'hs_cost.txt')
+        
+
     # Create main parser
     parser = argparse.ArgumentParser(description='Parameter optimization for SEMIC.')
     # Create parsers for each of the available optimization techniques
@@ -311,6 +358,16 @@ if __name__ == "__main__":
     rs_parser.add_argument('--plot', help='Plot the optimal parameter matrix plot.', action='store_true', default=False)
     rs_parser.add_argument('--save', help='Save the optimal parameter matrix plot.', action='store_true', default=False)
     rs_parser.set_defaults(func=run_rs)
+
+    hs_parser = sub_parser.add_parser('hs',help='Harmony Search')
+    hs_parser.add_argument('--max-iter','-m', help='Number of iterations (default=%(default)s)',type=int, default=500)
+    hs_parser.add_argument('--consid_rate','-c', help='Harmony Memory consideration rate, typically between 0.7 and 0.95 (default=%(default)s).',type=float, default=0.95)
+    hs_parser.add_argument('--adjust_rate','-a', help='Pitch adjustment rate, typically between 0.1 and 0.5 (default=%(default)s).',type=float, default=0.5)
+    hs_parser.add_argument('--range','-r', help='Random adjustemt to Pitch adjustemnt (default=%(default)s).',type=float, default=0.05)
+    hs_parser.add_argument('--mem-size','-s', help='Size of memory (default=%(default)s).',type=int, default=20)
+    hs_parser.add_argument('--plot', help='Plot the optimal parameter matrix plot.', action='store_true', default=False)
+    hs_parser.add_argument('--save', help='Save the optimal parameter matrix plot.', action='store_true', default=False)
+    hs_parser.set_defaults(func=run_hs)
 
     # Parse and evaluate
     args = parser.parse_args()
