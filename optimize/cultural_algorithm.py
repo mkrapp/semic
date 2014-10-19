@@ -21,10 +21,6 @@ def objective_function(vector):
 def rand_in_bounds(min, max):
     return min + ((max-min) * random.random()) 
 
-
-def random_vector(minmax):
-    return [minmax[i][0] + ((minmax[i][1] - minmax[i][0]) * random.random()) for i in range(len(minmax))]
-
 def random_vector(minmax):
     return [rand_in_bounds(minmax[i][0], minmax[i][1]) for i in range(len(minmax))]
 
