@@ -128,7 +128,7 @@ program run_particles
         cost_melt = calculate_crmsd(state%melt,vali%melt,ntime)
         cost_smb = calculate_crmsd(state%smb,vali%smb,ntime)
         cost_alb = calculate_crmsd(state%alb,vali%alb,ntime)
-        cost = (cost_alb+cost_stt+cost_smb)/3.0
+        cost = dsqrt(cost_alb**2+cost_stt**2+cost_smb**2)
         write(2,*) cost
         close(2)
     end do
