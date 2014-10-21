@@ -24,7 +24,7 @@ def rdcsv(name):
     f.close()
     return(data)
 
-def plot_topo(fnm,show=True,savefig=False):
+def plot_topo(fnm,fnm2=None,show=True,savefig=False):
     params = rdcsv('topology.ranges')
     print params
     
@@ -34,6 +34,9 @@ def plot_topo(fnm,show=True,savefig=False):
     
     data = np.loadtxt(fnm)
     print np.shape(data)
+    if fnm2 is not None:
+        data2 = np.loadtxt(fnm2)
+        print np.shape(data2)
     
     mpl.rcParams['figure.figsize'] = 15,12
     mpl.rcParams['font.size'] = 10
@@ -53,16 +56,21 @@ def plot_topo(fnm,show=True,savefig=False):
                 py = data[:,j+1]
                 px = px[~np.isnan(fitness)]
                 py = py[~np.isnan(fitness)]
-                xi = np.linspace(min(px), max(px),25)
-                yi = np.linspace(min(py), max(py),25)
+                xi = np.linspace(min(px), max(px),100)
+                yi = np.linspace(min(py), max(py),100)
                 zi = griddata(px, py, fitness, xi, yi,interp='linear')
                 p = axarr[i,j].pcolorfast(xi,yi,zi,cmap='jet')
+                if fnm2 is not None:
+                    px2 = data2[:,i+2]
+                    py2 = data2[:,j+2]
+                    axarr[i,j].plot(px2,py2,'ko-',alpha=0.5,mew=0)
+                    axarr[i,j].plot(px2[-1],py2[-1],'rs',markersize=7,mew=0)
                 axarr[i,j].set_xlabel(par_names[i])
                 axarr[i,j].set_ylabel(par_names[j])
                 axarr[i,j].set_xlim(float(params[i][1]),float(params[i][2]))
                 axarr[i,j].set_ylim(float(params[j][1]),float(params[j][2]))
                 if i == 1 :
-                    divider = make_axes_locatable(axarr[3,4])
+                    divider = make_axes_locatable(axarr[0,1])
                     cax = divider.append_axes("left", size="10%", pad=0.1)
                     cb = plt.colorbar(p,cax=cax)
                     cb.set_label("Fitness",fontsize=12)
@@ -71,14 +79,12 @@ def plot_topo(fnm,show=True,savefig=False):
             plt.setp(axarr[i,j].get_xticklabels(), rotation=30)
             i += 1
         j += 1
-    #f.subplots_adjust(right=0.8)
-    #cbar_ax = f.add_axes([0.85, 0.15, 0.05, 0.7])
-    #f.colorbar(p, cax=cbar_ax)
     f.set_tight_layout(True)
     if show: plt.show()
     if savefig: f.savefig('parameter_matrix.pdf',type='PDF',bbox_inches='tight', pad_inches = 0.0)
 
 if __name__ == "__main__":
 
-    plot_topo(sys.argv[1])
+    if len(sys.argv) == 2: plot_topo(sys.argv[1])
+    if len(sys.argv) == 3: plot_topo(sys.argv[1],sys.argv[2])
 
