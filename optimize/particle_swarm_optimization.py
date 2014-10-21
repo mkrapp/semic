@@ -26,9 +26,7 @@ def create_particle(search_space, vel_space, id=None):
     particle = {}
     if id is not None: particle["id"] = id
     particle["pos"]    = random_vector(search_space)
-    particle["cost"]   = 1.e40
-    particle["b_pos"]  = list(particle["pos"])
-    particle["b_cost"] = particle["cost"]
+    particle["b_pos"]  = particle["pos"]
     particle["vel"]    = random_vector(vel_space)
     return particle
 
@@ -36,7 +34,7 @@ def get_global_best(population, current_best=None):
     best = sorted(population, key=lambda k: k["cost"])[0]
     if current_best is None or best["cost"] <= current_best["cost"]:
         current_best = {}
-        current_best["pos"]  = list(best["pos"])
+        current_best["pos"]  = best["pos"]
         current_best["cost"] = best["cost"]
     return current_best
 
@@ -71,6 +69,7 @@ def search(max_gens, search_space, vel_space, pop_size, c1, c2):
     pop = [create_particle(search_space, vel_space) for i in range(pop_size)]
     for p in pop:
         p["cost"] = objective_function(p["pos"])
+        p["b_cost"] = p["cost"]
     gbest = get_global_best(pop)
     for gen in range(max_gens):
         for particle in pop:
