@@ -23,6 +23,7 @@ def write_namelist(fname,particle):
     f.write('  csh = 1.5e-3,\n')
     f.write('  clh = 3.0e-4,\n')
     f.write('  albl = -999,\n')
+    f.write('  tmin = 263.15,\n')
     # loop through parameter values
     for j in range(0,k):
     	f.write('  ' + names[j] + ' = %.8f' % particle["pos"][j] + ',\n')
@@ -50,13 +51,14 @@ def run_particles(pop, nml_prefix):
         sys.exit()
     cost = {}
     for p in pop:
-        nml = nml_prefix+"%03d.nml" % p["id"]
+        nml = nml_prefix+"%06d.nml" % p["id"]
         write_namelist(nml,p)
     i0 = 0
     i1 = len(pop)-1
-    call(["./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])
+    #call(["./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])
+    call(["mpiexec","-n","3","./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])    
     for p in pop:
-        output = nml_prefix+"%03d.out" % p["id"]
+        output = nml_prefix+"%06d.out" % p["id"]
         cost[p["id"]] = np.loadtxt(output)
     return cost
 
@@ -99,14 +101,16 @@ def search_pso(max_gens, search_space, vel_space, pop_size, c1, c2, prefix):
     pop = [pso.create_particle(search_space, vel_space, id=i) for i in range(pop_size)]
     cost = run_particles(pop,tmpdir+'/'+prefix)
     for p in pop:
-        p["fitness"] = cost[p["id"]]
+        p["cost"] = cost[p["id"]]
+        p["b_cost"] = p["cost"]
     gbest = pso.get_global_best(pop)
     try:
     	for gen in range(max_gens):
-    	    cost = run_particles(pop,tmpdir+'/'+prefix)
     	    for particle in pop:
     	        pso.update_velocity(particle, gbest, vel_space)
     	        pso.update_position(particle, search_space)
+    	    cost = run_particles(pop,tmpdir+'/'+prefix)
+    	    for particle in pop:
     	        particle["cost"] = cost[particle["id"]]
     	        pso.update_best_position(particle)
     	    gbest = pso.get_global_best(pop, gbest)
