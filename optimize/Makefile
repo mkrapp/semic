@@ -2,8 +2,16 @@
 FC       = gfortran
 #FFLAGS   = -Og -p -fcheck=all -fbackslash -Wall -Wextra -fbounds-check -fbacktrace
 FFLAGS   = -O2 -fbackslash -fcheck=all
+LDFLAGS  = 
+INCLUDES =
+LFLAGS   =
 
-run_particles.x: ../surface_physics.f90 ../utils.f90 run_particles.f90
+ifeq ($(mpi),1)
+	FC = mpif90
+	FFLAGS += -DMPI
+endif
+
+run_particles.x: ../surface_physics.f90 ../utils.f90 run_particles.F90
 	$(FC) $(FFLAGS) -o $@ $^
 
 clean:
