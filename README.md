@@ -8,7 +8,7 @@ The model is driven by atmospheric forcing like air temperature, downwelling rad
 Example
 -------
 
-An example on how to run *SEMIC* is provided in the `example` directory.
+An example on how to setup and run *SEMIC* is provided in the `example` directory.
 
 Optimization
 ------------
