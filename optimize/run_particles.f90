@@ -2,6 +2,9 @@ program run_particles
       
     use utils
     use surface_physics
+#if MPI
+    use mpi
+#endif
 
     implicit none
 
@@ -24,6 +27,17 @@ program run_particles
 
     ! name list to drive model
     namelist /driver/ nloop, ntime, input_forcing, output, validation 
+
+#if MPI
+    integer :: ierr, num_procs, my_id
+
+    ! MPI directives
+    call MPI_INIT ( ierr )
+    !     find out MY process ID, and how many processes were started.
+
+    call MPI_COMM_RANK (MPI_COMM_WORLD, my_id, ierr)
+    call MPI_COMM_SIZE (MPI_COMM_WORLD, num_procs, ierr)
+#endif
 
     write(*,*) "\x1B[32mrun_particles:\x1B[0m start particle calculation."
     prog_name = "run_particles"
@@ -68,8 +82,12 @@ program run_particles
     allocate(state%melt(ntime))
     allocate(state%acc(ntime))
 
+#if MPI
+    do i = i0+my_id,i1,num_procs
+#else
     do i = i0, i1
-        write(nml_file,"(A,I3.3,A)") trim(prefix), i, ".nml"
+#endif
+        write(nml_file,"(A,I6.6,A)") trim(prefix), i, ".nml"
         inquire(file=nml_file, exist=file_exists)
         if (.not. file_exists) then
             write(*,*) "file '", trim(nml_file), "' not found, exiting loop"
@@ -80,8 +98,9 @@ program run_particles
         ! load parameters from namelist
         call surface_physics_par_load(surface%par,trim(nml_file))
         ! open file for CRMSD output
-        write(output,"(A,I3.3,A)") trim(prefix), i,  ".out"
+        write(output,"(A,I6.6,A)") trim(prefix), i,  ".out"
         open(2,file=trim(output),form='formatted')
+        if (mod(i,100) == 0) write(*,*) "\x1B[32mrun_particle:\x1B[0m Load file ", trim(nml_file)
 
 
         do k=1,nloop ! re-iterate 'nloop' times
@@ -129,7 +148,7 @@ program run_particles
         cost_smb = calculate_crmsd(state%smb,vali%smb,ntime)
         cost_alb = calculate_crmsd(state%alb,vali%alb,ntime)
         cost = dsqrt(cost_alb**2+cost_stt**2+cost_smb**2)
-        write(2,*) cost
+        write(2,*) cost_smb
         close(2)
     end do
         
@@ -137,5 +156,9 @@ program run_particles
     call surface_dealloc(surface%now)
 
     write(*,*) "\x1B[32mrun_particle:\x1B[0m end particle calculation."
+
+#if MPI
+    call MPI_FINALIZE ( ierr )
+#endif
 
 end program
