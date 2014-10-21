@@ -38,12 +38,6 @@ def write_namelist(fname,particle):
     f.write('/\n')
     f.close()
 
-def generate_vel_space(search_space,frac=1./5.):
-    vel_space = []
-    for i,s in enumerate(search_space):
-    	vel_space.append([-frac*abs(s[1]-s[0])/2.,frac*abs(s[1]-s[0])/2.])
-    return vel_space
-
 def run_particles(pop, nml_prefix):
     exe = 'run_particles.x'
     if not os.path.isfile(exe):
@@ -91,13 +85,14 @@ def search_rs(search_space, max_iter, prefix, inc=None):
     return best
 
 
-def search_pso(max_gens, search_space, vel_space, pop_size, c1, c2, prefix):
+def search_pso(max_gens, search_space, pop_size, c1, c2, prefix):
     tmpdir = tmp.gettempdir()
     f = open(prefix+'cost.txt','w')
     f.write("# gen fitness ")
     for n in names:
         f.write(n+" ")
     f.write("\n")
+    vel_space = pso.generate_vel_space(search_space,frac=1)
     pop = [pso.create_particle(search_space, vel_space, id=i) for i in range(pop_size)]
     cost = run_particles(pop,tmpdir+'/'+prefix)
     for p in pop:
@@ -269,10 +264,6 @@ if __name__ == "__main__":
     else:
         search_space = [[float(x) for x in p[1:]] for p in params]
 
-    # create velocity space
-    vel_space = generate_vel_space(search_space,frac=1)
-    
-
     def plot(args,fnm):
         if args.plot: pc.plot_costs(fnm) 
         if args.save and args.plot: pc.plot_costs(fnm,savefig=True) 
@@ -295,7 +286,7 @@ if __name__ == "__main__":
         pop_size = args.pop_size
         print 'Run Particle Swarm Optimization for %i generations of population with size %i ' \
               % (max_gens, pop_size)
-        best = search_pso(max_gens, search_space, vel_space, pop_size, 0.0, 0.0, 'pso_')
+        best = search_pso(max_gens, search_space, pop_size, 0.0, 0.0, 'pso_')
         print  "done! Solution: f = %.4g, s =" % best["cost"], best["pos"]
         plot(args,'pso_cost.txt')
 

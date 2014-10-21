@@ -22,6 +22,12 @@ def objective_function(vector):
 def random_vector(minmax):
     return [ minmax[i][0] + ((minmax[i][1] - minmax[i][0]) * random.random()) for i in range(len(minmax))]
 
+def generate_vel_space(search_space,frac=1./5.):
+    vel_space = []
+    for i,s in enumerate(search_space):
+    	vel_space.append([-frac*abs(s[1]-s[0])/2.,frac*abs(s[1]-s[0])/2.])
+    return vel_space
+
 def create_particle(search_space, vel_space, id=None):
     particle = {}
     if id is not None: particle["id"] = id
@@ -65,7 +71,9 @@ def update_best_position(part):
         part["b_cost"] = part["cost"]
         part["b_pos"] = list(part["pos"])
 
-def search(max_gens, search_space, vel_space, pop_size, c1, c2):
+def search(max_gens, search_space, pop_size, c1, c2):
+    # create velocity space
+    vel_space = generate_vel_space(search_space,frac=1)
     pop = [create_particle(search_space, vel_space) for i in range(pop_size)]
     for p in pop:
         p["cost"] = objective_function(p["pos"])
@@ -84,11 +92,10 @@ def search(max_gens, search_space, vel_space, pop_size, c1, c2):
 if __name__ == "__main__":
 
     search_space = [[-5,5],[-5,5]]
-    vel_space = [[-1,1],[-1,1]]
     
     pop_size = 50
     max_gens = 100
     max_vel = 100.0
     c1, c2 = 2.0, 2.0
-    best = search(max_gens, search_space, vel_space, pop_size, c1,c2)
+    best = search(max_gens, search_space, pop_size, c1,c2)
     print  "done! Solution: f = %.4g, s =" % best["cost"], best["pos"]
