@@ -1,7 +1,7 @@
 .PHONY: clean run_example
 FC       = gfortran
 #FFLAGS   = -Og -p -fcheck=all -fbackslash -Wall -Wextra -fbounds-check -fbacktrace
-FFLAGS   = -O2 -fbackslash -fcheck=all
+FFLAGS   = -O2 -fbackslash -fcheck=all -cpp
 LDFLAGS  = 
 INCLUDES =
 LFLAGS   =
@@ -11,7 +11,7 @@ ifeq ($(mpi),1)
 	FFLAGS += -DMPI
 endif
 
-run_particles.x: ../surface_physics.f90 ../utils.f90 run_particles.F90
+run_particles.x: ../surface_physics.f90 ../utils.f90 run_particles.f90
 	$(FC) $(FFLAGS) -o $@ $^
 
 clean:
