@@ -76,8 +76,7 @@ def search_rs(search_space, max_iter, prefix, inc=None):
             [f.write("%.6g "%p) for p in best["pos"]]
             f.write("\n")
             print " > iteration %i, best=%.4g" % (i, best["cost"])
-            print names
-            print best["pos"]
+            print [names[i] + ": %.6g " % p for i,p in enumerate(best["pos"])]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -99,6 +98,9 @@ def search_pso(max_gens, search_space, pop_size, c1, c2, prefix):
         p["cost"] = cost[p["id"]]
         p["b_cost"] = p["cost"]
     gbest = pso.get_global_best(pop)
+    part_best = {}
+    part_best["pos"] = gbest["pos"]
+    part_best["cost"] = gbest["cost"]
     try:
     	for gen in range(max_gens):
     	    for particle in pop:
@@ -109,17 +111,19 @@ def search_pso(max_gens, search_space, pop_size, c1, c2, prefix):
     	        particle["cost"] = cost[particle["id"]]
     	        pso.update_best_position(particle)
     	    gbest = pso.get_global_best(pop, gbest)
-            f.write("%i %.6g " % (gen, gbest["cost"]))
-    	    [f.write("%.6g "%p) for p in gbest["pos"]]
+            if gbest["cost"] < part_best["cost"]:
+                part_best["pos"] = list(gbest["pos"])
+                part_best["cost"] = gbest["cost"]
+            f.write("%i %.6g " % (gen, part_best["cost"]))
+    	    [f.write("%.6g "%p) for p in part_best["pos"]]
     	    f.write("\n")
-    	    print " > gen %i, fitness=%.6g" % (gen, gbest["cost"])
-            print names
-            print gbest["pos"]
+    	    print " > gen %i, fitness=%.6g" % (gen, part_best["cost"])
+            print [names[i] + ": %.6g " % p for i,p in enumerate(part_best["pos"])]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
     f.close()
-    return gbest
+    return part_best
 
 def search_es(max_gens, search_space, pop_size, num_children, prefix):
     tmpdir = tmp.gettempdir()
@@ -147,8 +151,7 @@ def search_es(max_gens, search_space, pop_size, num_children, prefix):
             [f.write("%.6g "%p) for p in best["pos"]]
     	    f.write("\n")
     	    print " > gen %i, fitness=%.4g" % (gen, best["fitness"])
-            print names
-            print best["pos"]
+            print [names[i] + ": %.6g " % p for i,p in enumerate(best["pos"])]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -194,8 +197,7 @@ def search_ca(max_gens, search_space, pop_size, num_accepted, prefix):
             [f.write("%.6g "%p) for p in belief_space["situational"]["pos"]]
             f.write("\n")
             print " > gen %i, f=%.4g" % (gen, belief_space["situational"]["fitness"])
-            print names
-            print belief_space["situational"]["pos"]
+            print [names[i] + ": %.6g " % p for i,p in enumerate(belief_space["situational"]["pos"])]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -228,9 +230,8 @@ def search_hs(search_space, max_iter, mem_size, consid_rate, adjust_rate, nrange
             f.write("%i %.6g " % (iter, best["fitness"]))
             [f.write("%.6g "%p) for p in best["pos"]]
     	    f.write("\n")
-            print names
-            print best["pos"]
             print " > iteration %i, fitness=%.4g" % (iter, best["fitness"])
+            print [names[i] + ": %.6g " % p for i,p in enumerate(best["pos"])]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
