@@ -38,7 +38,7 @@ def create_particle(search_space, vel_space, id=None):
 
 def get_global_best(population, current_best=None):
     best = sorted(population, key=lambda k: k["cost"])[0]
-    if current_best is None or best["cost"] <= current_best["cost"]:
+    if current_best is None or best["cost"] < current_best["cost"]:
         current_best = {}
         current_best["pos"]  = best["pos"]
         current_best["cost"] = best["cost"]
@@ -79,6 +79,7 @@ def search(max_gens, search_space, pop_size, c1, c2):
         p["cost"] = objective_function(p["pos"])
         p["b_cost"] = p["cost"]
     gbest = get_global_best(pop)
+    part_best = gbest
     for gen in range(max_gens):
         for particle in pop:
             update_velocity(particle, gbest, vel_space, c1, c2)
@@ -86,8 +87,10 @@ def search(max_gens, search_space, pop_size, c1, c2):
             particle["cost"] = objective_function(particle["pos"])
             update_best_position(particle)
         gbest = get_global_best(pop, gbest)
-        print " > gen %i, fitness=%.4g" % (gen, gbest["cost"])
-    return gbest
+        if gbest["cost"] < part_best["cost"]:
+            part_best = dict(gbest)
+        print " > gen %i, fitness=%.4g" % (gen, part_best["cost"])
+    return part_best
 
 if __name__ == "__main__":
 
