@@ -21,8 +21,11 @@ def write_namelist(fname,particle):
     f.write('  tstic = 86400.,\n')
     f.write('  ceff = 2.0e6,\n')
     f.write('  csh = 1.5e-3,\n')
-    f.write('  clh = 3.0e-4,\n')
+    f.write('  clh = 6.0e-4,\n')
     f.write('  albl = -999,\n')
+#    f.write('  alb_smin = -999,\n')
+#    f.write('  alb_smax = -999,\n')
+#    f.write('  albr = -999,\n')
     f.write('  tmin = 263.15,\n')
     # loop through parameter values
     for j in range(0,k):
@@ -56,30 +59,29 @@ def run_particles(pop, nml_prefix):
         cost[p["id"]] = np.loadtxt(output)
     return cost
 
-def search_rs(search_space, max_iter, prefix, inc=None):
+def search_rs(search_space, max_iter, prefix):
     tmpdir = tmp.gettempdir()
     f = open(prefix+'cost.txt','w')
     f.write("# iter fitness ")
     for n in names:
         f.write(n+" ")
     f.write("\n")
+    pop = []
+    for i in range(max_iter):
+        candidate = {}
+        candidate["id"] = i
+        candidate["pos"] = rs.random_vector(search_space)
+        pop.append(candidate)
     best = None
-    try:
-        for i in range(max_iter):
-            candidate = {}
-            candidate["id"] = 0
-            candidate["pos"] = rs.random_vector(search_space, inc)
-            cost = run_particles([candidate],tmpdir+'/'+prefix)
-            candidate["cost"] = cost[candidate["id"]]
-            if best is None or candidate["cost"] < best["cost"]: best = candidate
-            f.write("%i %.6g " % (i, best["cost"]))
-            [f.write("%.6g "%p) for p in best["pos"]]
-            f.write("\n")
-            print " > iteration %i, best=%.4g" % (i, best["cost"])
-            print [names[i] + ": %.6g " % p for i,p in enumerate(best["pos"])]
-    except KeyboardInterrupt:
-        print "\033[91mInterruption by user. Exiting...\033[0m"
-    	pass
+    cost = run_particles(pop,tmpdir+'/'+prefix)
+    for i,candidate in enumerate(pop):
+        candidate["cost"] = cost[candidate["id"]]
+        if best is None or candidate["cost"] < best["cost"]: best = candidate
+        f.write("%i %.6g " % (i, best["cost"]))
+        [f.write("%.6g "%p) for p in best["pos"]]
+        f.write("\n")
+        print " > iteration %i, best=%.4g" % (i, best["cost"])
+        print [names[i] + ": %.6g " % p for i,p in enumerate(best["pos"])]
     f.close()
     return best
 
@@ -257,13 +259,7 @@ if __name__ == "__main__":
     # Parsing command line arguments
     #
 
-    inc=None
-    if len(params[0]) == 4:
-        inc = [params[i][-1] for i in range(len(params))]
-        # create parameter space with respect to ranges provided in the list 'namelist.ranges'
-        search_space = [[float(x) for x in p[1:-1]] for p in params]
-    else:
-        search_space = [[float(x) for x in p[1:]] for p in params]
+    search_space = [[float(x) for x in p[1:]] for p in params]
 
     def plot(args,fnm):
         if args.plot: pc.plot_costs(fnm) 
@@ -306,7 +302,7 @@ if __name__ == "__main__":
     def run_rs(args):
         max_iter = args.max_iter
         print 'Run Random Search for %i iterations' % max_iter
-        best = search_rs(search_space, max_iter, 'rs_', inc)
+        best = search_rs(search_space, max_iter, 'rs_')
         print  "Done! Best solution: f = %.4g, v =" % best["cost"], best["pos"]
         plot(args,'rs_cost.txt')
 

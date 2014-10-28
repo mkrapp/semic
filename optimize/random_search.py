@@ -15,15 +15,8 @@ import random
 def objective_function(vector):
    return sum([x ** 2.0 for x in vector])
 
-def random_vector(minmax,inc=None):
-    if inc is None:
-        return [minmax[i][0] + ((minmax[i][1] - minmax[i][0]) * random.random()) for i in range(len(minmax))]
-    else:
-        rv = []
-        for i in range(len(minmax)):
-            steps = int((minmax[i][1] - minmax[i][0])/float(inc[i]))
-            rv.append(minmax[i][0] + random.randrange(steps)*float(inc[i]))
-        return rv
+def random_vector(minmax):
+    return [minmax[i][0] + ((minmax[i][1] - minmax[i][0]) * random.random()) for i in range(len(minmax))]
 
 def search(search_space, max_iter):
     best = None
