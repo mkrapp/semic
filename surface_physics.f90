@@ -211,6 +211,7 @@ contains
 
             ! bulk formulation of sensible heat flux (W/m^2)
             if (.not. bnd%shf) then
+                shf = 0.0_dp
                 where (land_ice_ocean == 2.0_dp) 
                     shf = csh*cap*rhoatm*usurf*(tsurf-tatm)
                 end where
@@ -223,8 +224,8 @@ contains
             ! not for evaporation/condensation (would require estimate of liquid water content)
             subl = 0.0_dp
             evap = 0.0_dp
+            lhf  = 0.0_dp
             if (.not. bnd%lhf) then  
-                lhf  = 0.0_dp
                 where (land_ice_ocean == 2.0_dp)
                     where (tsurf < t0)
                         esat_sur = ei_sat(tsurf)
@@ -237,7 +238,7 @@ contains
                         !end where
                         lhf = subl*cls
                     end where
-                else where
+                else where (land_ice_ocean == 1.0_dp)
                 ! over land latent heat flux exchange coeff is equal to sensible heat coeff
                     where (tsurf < t0)
                         esat_sur = ei_sat(tsurf)
