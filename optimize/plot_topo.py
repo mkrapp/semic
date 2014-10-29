@@ -25,7 +25,7 @@ def rdcsv(name):
     return(data)
 
 def plot_topo(fnm,fnm2=None,show=True,savefig=False):
-    params = rdcsv('topology.ranges')
+    params = rdcsv('namelist.ranges')
     print params
     
     par_names=[]
@@ -58,13 +58,13 @@ def plot_topo(fnm,fnm2=None,show=True,savefig=False):
                 py = py[~np.isnan(fitness)]
                 xi = np.linspace(min(px), max(px),100)
                 yi = np.linspace(min(py), max(py),100)
-                zi = griddata(px, py, fitness, xi, yi,interp='linear')
-                p = axarr[i,j].pcolorfast(xi,yi,zi,cmap='jet')
+                zi = griddata(px, py, fitness, xi, yi)
+                p = axarr[i,j].pcolormesh(xi,yi,zi,cmap='winter')
                 if fnm2 is not None:
                     px2 = data2[:,i+2]
                     py2 = data2[:,j+2]
                     axarr[i,j].plot(px2,py2,'ko-',alpha=0.5,mew=0)
-                    axarr[i,j].plot(px2[-1],py2[-1],'rs',markersize=7,mew=0)
+                    axarr[i,j].plot(px2[-1],py2[-1],'rs',markersize=7)
                 axarr[i,j].set_xlabel(par_names[i])
                 axarr[i,j].set_ylabel(par_names[j])
                 axarr[i,j].set_xlim(float(params[i][1]),float(params[i][2]))
