@@ -11,15 +11,18 @@ import plot_topo as pt
 
 
 def write_namelist(fname,particle):
-    print "write parameters to FORTRAN namelist " + fname
+    #print "write parameters to FORTRAN namelist " + fname
     f=open(fname,'w')
     f.write('&surface_physics\n')
     f.write('  boundary = "", "", "",\n')
     f.write('  tstic = 86400.,\n')
     f.write('  ceff = 2.0e6,\n')
     f.write('  csh = 1.5e-3,\n')
-    f.write('  clh = 3.0e-4,\n')
+    f.write('  clh = 6.0e-4,\n')
     f.write('  albl = -999,\n')
+#    f.write('  albr = -999,\n')
+#    f.write('  alb_smin = -999,\n')
+#    f.write('  alb_smax = -999,\n')
     f.write('  tmin = 263.15,\n')
     # loop through parameter values
     for j in range(0,k):
@@ -49,17 +52,6 @@ def create_search_space(search_space, inc):
 
 def random_vector(minmax):
     return [ minmax[i][0] + ((minmax[i][1] - minmax[i][0]) * random.random()) for i in range(len(minmax))]
-
-def init_population(search_space, inc):
-    print 'init population'
-    par_space = create_search_space(search_space,inc)
-    n = len(par_space)
-    population = [{} for _ in range(n)]
-    for i,p in enumerate(population):
-        p["id"] = i
-        p["pos"] = list(par_space[i])
-    return population
-
 
 def init_population_random(search_space,n):
     population = [{} for _ in range(n)]
@@ -116,6 +108,7 @@ def run_particles(pop, nml_prefix):
         print "\033[91mFile "+exe+" not found.\n Run:\033[0m make "+exe
         sys.exit()
     cost = {}
+    print 'write namelist files'
     for p in pop:
         nml = nml_prefix+"%06d.nml" % p["id"]
         write_namelist(nml,p)
@@ -128,14 +121,13 @@ def run_particles(pop, nml_prefix):
         cost[p["id"]] = np.loadtxt(output)
     return cost
 
-def search(search_space, inc, pop_size, prefix):
+def search(search_space, pop_size, prefix):
     tmpdir = tmp.gettempdir()
     f = open(prefix+'cost.txt','w')
     f.write("#fitness ")
     for n in names:
         f.write(n+" ")
     f.write("\n")
-    #pop = init_population(search_space, inc)
     #pop = init_population_random(search_space, pop_size)
     pop = init_population_lhs(search_space, pop_size)
     try:
@@ -145,7 +137,7 @@ def search(search_space, inc, pop_size, prefix):
             f.write("%.6g " % candidate["cost"])
             [f.write("%.6g "%p) for p in candidate["pos"]]
             f.write("\n")
-            print candidate["pos"]
+            #print candidate["pos"]
     except KeyboardInterrupt:
         print "\033[91mInterruption by user. Exiting...\033[0m"
     	pass
@@ -155,7 +147,7 @@ def search(search_space, inc, pop_size, prefix):
 if __name__ == "__main__":
     
     #Get information on parameters and ranges from user file
-    params = pt.rdcsv('topology.ranges')
+    params = pt.rdcsv('namelist.ranges')
     #format is:
     #param-name,low,high
     
@@ -167,9 +159,8 @@ if __name__ == "__main__":
     for i in range(0,k):
         names.append(params[i][0])
 
-    search_space = [[float(x) for x in p[1:-1]] for p in params]
-    inc = [float(params[i][-1]) for i in range(len(params))]
+    search_space = [[float(x) for x in p[1:]] for p in params]
 
-    search(search_space, inc, 5000, 'topo_')
+    search(search_space, 10000, 'topo_')
 
     #pt.plot_topo('topo_cost.txt',show=True,savefig=True)
