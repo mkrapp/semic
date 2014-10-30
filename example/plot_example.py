@@ -6,27 +6,36 @@ import sys
 
 mpl.rcParams['figure.figsize'] = 8,12
 
-var_names = ['Surface Temperature (K)', 'Albedo', 'Snow Height (m)',
-             'SMB (mm/day)', 'Melt (mm/day)', 'Accumulation (mm/day)']
+var_names = ['Surface Temperature (K)', 'Albedo', 'SW net (W/m2)', 'SMB (mm/day)',
+             'Melt (mm/day)', 'Accumulation (mm/day)', 'SHF (W/m2)', 'LHF (W/m2)']
 
-data = np.loadtxt(sys.argv[1])
-vali = np.loadtxt(sys.argv[2])
+data_in = np.loadtxt(sys.argv[1])
+vali_in = np.loadtxt(sys.argv[2])
+bstart = int(sys.argv[3])
 
-ndata = len(data[0,:])
-nsteps = len(data[:,0])
+
+nbasins = len(data_in[0,:])/len(var_names)
+ndata = len(var_names)
+nsteps = len(data_in[:,0])
+
+if bstart >= nbasins:
+    print 'basin number too large. Must be smaller than %i' % nbasins
+    sys.exit()
+
+data = data_in[:,bstart::nbasins]
+vali = vali_in[:,bstart::nbasins]
 
 f, ax = plt.subplots(6,4)
 #f = plt.figure(figsize=(6,12))
 
-#ax2 = plt.subplot2grid((4,4), (0,1), colspan=3)
 x = np.arange(nsteps)
 lw = 2
 if nsteps>365: lw=1
 
-for y in range(ndata):
+for y in range(ndata-2):
     ax[y,0] = plt.subplot2grid((6,4), (y,0), colspan=3)
     fac = 1.
-    if y >= 3: fac = 86.4e6
+    if y >= 3 and y < 6: fac = 86.4e6
     label = None
     if y == 0: label = 'semic'
     ax[y,0].plot(x,fac*data[:,y],'k-',lw=lw,alpha=0.5,label=label)
@@ -48,7 +57,7 @@ for y in range(ndata):
     ax[y,-1].set_ylim(ymin,ymax)
     ax[y,-1].set_xlim(ymin,ymax)
     ax[y,-1].set_xlabel('semic')
-    ax[y,-1].set_ylabel(sys.argv[2])
+    ax[y,-1].set_ylabel('data')
 f.set_tight_layout(True)
 plt.show()
 

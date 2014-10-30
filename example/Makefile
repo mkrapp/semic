@@ -9,7 +9,7 @@ example.x: ../surface_physics.f90 ../utils.f90 example.f90
 output = $(shell grep vali example.namelist | awk -F '"' '{print $$2}')
 run_example: example.x
 	./example.x example.namelist
-	python plot_example.py example.out $(output)
+	python plot_example.py example.out $(output) 0
         
 clean:
 	rm -rf *.mod *.o *.x *.out
