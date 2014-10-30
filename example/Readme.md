@@ -45,7 +45,7 @@ In case of more than one time series, records for each forcing field are ordered
 
 In the command line, type:
 
-`./example.x`
+`./example.x example.namelist`
 
 The output is then written to `example.out`. This file contains the calculated
 surface temperature, surface albedo, net shortwave radiation, surface mass balance, 
