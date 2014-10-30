@@ -1,8 +1,5 @@
 EXAMPLE of SEMIC usage
 ======================
-Author: Mario Krapp
-Date created: 2014/10/01
-Last edit:    2014/10/07
 
 Compiling the source
 --------------------
