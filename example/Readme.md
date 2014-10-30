@@ -83,3 +83,25 @@ in the case of `c01_input.txt` used as input. If you process multi-dimensional d
 To do all steps at once (compile, run, and plot)
 
 `make run_example`
+
+Data Source
+-----------
+
+Stations 01-18 are real automatic weather stations located on the Greenland Ice Sheet and maintained by the [Greenland Climate Network](http://cires.colorado.edu/science/groups/steffen/gcnet/) (GC-Net).
+Station 20 and the transect are added as an example how to user longer data or multiple data points at once.
+The climate fields however are not from the GC-Net project but from a regional climate model study:
+
+__Fettweis, X.__: [_Reconstruction of the 1979–2006 Greenland ice sheet surface mass balance using the regional climate model MAR_](http://www.the-cryosphere.net/1/21/2007/tc-1-21-2007.html), The Cryosphere, 1, 21–40, 2007.
+
+StationID  | StationName   | Latitude | Longitude      | Elevation[m]
+-----------|---------------|----------|----------------|-------------
+01         |  Swiss Camp   | 69.6     | -49.3          |  1149 
+05         |     Humboldt  | 78.5     | -56.8          |  1995
+06         |       Summit  | 72.6     | -38.5          |  3254
+07         |       TUNU-N  | 78.0     | -34.0          |  2113
+11         |   South Dome  | 63.1     | -44.8          |  2922
+18         |         KULU  | 65.8     | -39.6          |   878
+20         |               | 68.2     | -49.1          |  1189
+transect   |               | 67.7     | -51.3 to -47.8 | 291-1634
+
+![stations](https://cloud.githubusercontent.com/assets/5938262/4843232/7ae98c94-602f-11e4-94d2-b9666688269f.png)
