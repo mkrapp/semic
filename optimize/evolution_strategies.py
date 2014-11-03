@@ -61,7 +61,7 @@ def search(max_gens, search_space, pop_size, num_children):
     for gen in range(max_gens):
         children = [mutate(population[i], search_space) for i in range(num_children)]
         for c in children:
-	    c["fitness"] = objective_function(c["pos"])
+	        c["fitness"] = objective_function(c["pos"])
         union = children+population
         union = sorted(union, key=lambda k: k["fitness"])
         if union[0]["fitness"] < best["fitness"]: best = union[0]
