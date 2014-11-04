@@ -5,30 +5,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import sys
-
-def rdcsv(name):
-    f = open(name,"r")
-    data = []
-    tmp = f.readline()
-    while tmp !="":
-        onerow = tmp.split(",")
-        last = len(onerow)-1
-        k = len(onerow[last])
-        if k!= 1:
-           onerow[last] = onerow[last][0:k-1]
-        if len(onerow) !=  0:
-           data.append(onerow)
-        tmp = f.readline()
-    f.close()
-    return(data)
+from tools import get_params
 
 def plot_costs(fnm,show=True,savefig=False):
-    params = rdcsv('namelist.ranges')
+
+    params, par_names = get_params()
     print params
-    
-    par_names=[]
-    for i in range(0,len(params)):
-        par_names.append(params[i][0])
     
     data = np.loadtxt(fnm,unpack=True)
     

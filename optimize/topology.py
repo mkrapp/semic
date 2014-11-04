@@ -1,42 +1,8 @@
 import numpy as np
-from subprocess import call
-import tempfile as tmp
-import sys
-import os.path
 import itertools
 import random
 import math
-
-import plot_topo as pt
-
-
-def write_namelist(fname,particle):
-    #print "write parameters to FORTRAN namelist " + fname
-    f=open(fname,'w')
-    f.write('&surface_physics\n')
-    f.write('  boundary = "", "", "",\n')
-    f.write('  tstic = 86400.,\n')
-    f.write('  ceff = 2.0e6,\n')
-    f.write('  csh = 1.5e-3,\n')
-    f.write('  clh = 6.0e-4,\n')
-    f.write('  albl = -999,\n')
-#    f.write('  albr = -999,\n')
-#    f.write('  alb_smin = -999,\n')
-#    f.write('  alb_smax = -999,\n')
-    f.write('  tmin = 263.15,\n')
-    # loop through parameter values
-    for j in range(0,k):
-    	f.write('  ' + names[j] + ' = %.8f' % particle["pos"][j] + ',\n')
-    f.write('  method = "ebm",\n')
-    f.write('  alb_scheme = "slater",\n')
-    f.write('/\n')
-    f.write('&smb_output\n')
-    f.write('  file_timser  = "",\n')
-    f.write('  file_daily   = "",\n')
-    f.write('  file_diag    = "",\n')
-    f.write('  file_monthly = "",\n')
-    f.write('/\n')
-    f.close()
+from tools import run_particles, get_params, init_search
 
 
 def create_search_space(search_space, inc):
@@ -102,32 +68,8 @@ def init_population_lhs(search_space,n):
     return population
 
 
-def run_particles(pop, nml_prefix):
-    exe = 'run_particles.x'
-    if not os.path.isfile(exe):
-        print "\033[91mFile "+exe+" not found.\n Run:\033[0m make "+exe
-        sys.exit()
-    cost = {}
-    print 'write namelist files'
-    for p in pop:
-        nml = nml_prefix+"%06d.nml" % p["id"]
-        write_namelist(nml,p)
-    i0 = 0
-    i1 = len(pop)-1
-    #call(["./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])
-    call(["mpiexec","-n","3","./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])
-    for p in pop:
-        output = nml_prefix+"%06d.out" % p["id"]
-        cost[p["id"]] = np.loadtxt(output)
-    return cost
-
 def search(search_space, pop_size, prefix):
-    tmpdir = tmp.gettempdir()
-    f = open(prefix+'cost.txt','w')
-    f.write("#fitness ")
-    for n in names:
-        f.write(n+" ")
-    f.write("\n")
+    f, tmpdir = init_search(prefix,names)
     #pop = init_population_random(search_space, pop_size)
     pop = init_population_lhs(search_space, pop_size)
     try:
@@ -147,20 +89,8 @@ def search(search_space, pop_size, prefix):
 if __name__ == "__main__":
     
     #Get information on parameters and ranges from user file
-    params = pt.rdcsv('namelist.ranges')
-    #format is:
-    #param-name,low,high
+    params, names = get_params()
     
-    #set dimension
-    k=len(params)
-    
-    # get names of parameters
-    names=[]
-    for i in range(0,k):
-        names.append(params[i][0])
-
     search_space = [[float(x) for x in p[1:]] for p in params]
 
-    search(search_space, 10000, 'topo_')
-
-    #pt.plot_topo('topo_cost.txt',show=True,savefig=True)
+    search(search_space, 1000, 'topo_')

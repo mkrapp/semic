@@ -1,71 +1,16 @@
 import numpy as np
-from subprocess import call
-import tempfile as tmp
-import sys
-import os.path
 import argparse
-
 import particle_swarm_optimization as pso
 import evolution_strategies as es
 import cultural_algorithm as ca
 import random_search as rs
 import harmony_search as hs
 import plot_costs as pc
+from tools import run_particles, get_params, init_search
 
-
-def write_namelist(fname,particle):
-    #print "write parameters to FORTRAN namelist " + fname
-    f=open(fname,'w')
-    f.write('&surface_physics\n')
-    f.write('  boundary = "", "", "",\n')
-    f.write('  tstic = 86400.,\n')
-    f.write('  ceff = 2.0e6,\n')
-    f.write('  csh = 1.5e-3,\n')
-    f.write('  clh = 6.0e-4,\n')
-    f.write('  albl = -999,\n')
-#    f.write('  alb_smin = -999,\n')
-#    f.write('  alb_smax = -999,\n')
-#    f.write('  albr = -999,\n')
-    f.write('  tmin = 263.15,\n')
-    # loop through parameter values
-    for j in range(0,k):
-    	f.write('  ' + names[j] + ' = %.8f' % particle["pos"][j] + ',\n')
-    f.write('  method = "ebm",\n')
-    f.write('  alb_scheme = "slater",\n')
-    f.write('/\n')
-    f.write('&smb_output\n')
-    f.write('  file_timser  = "",\n')
-    f.write('  file_daily   = "",\n')
-    f.write('  file_diag    = "",\n')
-    f.write('  file_monthly = "",\n')
-    f.write('/\n')
-    f.close()
-
-def run_particles(pop, nml_prefix):
-    exe = 'run_particles.x'
-    if not os.path.isfile(exe):
-        print "\033[91mFile "+exe+" not found.\n Run:\033[0m make "+exe
-        sys.exit()
-    cost = {}
-    for p in pop:
-        nml = nml_prefix+"%06d.nml" % p["id"]
-        write_namelist(nml,p)
-    i0 = 0
-    i1 = len(pop)-1
-    #call(["./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])
-    call(["mpiexec","-n","3","./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])    
-    for p in pop:
-        output = nml_prefix+"%06d.out" % p["id"]
-        cost[p["id"]] = np.loadtxt(output)
-    return cost
 
 def search_rs(search_space, max_iter, prefix):
-    tmpdir = tmp.gettempdir()
-    f = open(prefix+'cost.txt','w')
-    f.write("# iter fitness ")
-    for n in names:
-        f.write(n+" ")
-    f.write("\n")
+    f, tmpdir = init_search(prefix,names)
     pop = []
     for i in range(max_iter):
         candidate = {}
@@ -87,12 +32,7 @@ def search_rs(search_space, max_iter, prefix):
 
 
 def search_pso(max_gens, search_space, pop_size, c1, c2, prefix):
-    tmpdir = tmp.gettempdir()
-    f = open(prefix+'cost.txt','w')
-    f.write("# gen fitness ")
-    for n in names:
-        f.write(n+" ")
-    f.write("\n")
+    f, tmpdir = init_search(prefix,names)
     vel_space = pso.generate_vel_space(search_space,frac=1)
     pop = [pso.create_particle(search_space, vel_space, id=i) for i in range(pop_size)]
     cost = run_particles(pop,tmpdir+'/'+prefix)
@@ -128,12 +68,7 @@ def search_pso(max_gens, search_space, pop_size, c1, c2, prefix):
     return part_best
 
 def search_es(max_gens, search_space, pop_size, num_children, prefix):
-    tmpdir = tmp.gettempdir()
-    f = open(prefix+'cost.txt','w')
-    f.write("# gen fitness ")
-    for n in names:
-        f.write(n+" ")
-    f.write("\n")
+    f, tmpdir = init_search(prefix,names)
     population = es.init_population(search_space, pop_size, id=True)
     cost = run_particles(population,tmpdir+'/'+prefix)
     for p in population:
@@ -161,12 +96,7 @@ def search_es(max_gens, search_space, pop_size, num_children, prefix):
     return best
 
 def search_ca(max_gens, search_space, pop_size, num_accepted, prefix):
-    tmpdir = tmp.gettempdir()
-    f = open(prefix+'cost.txt','w')
-    f.write("# gen fitness ")
-    for n in names:
-        f.write(n+" ")
-    f.write("\n")
+    f, tmpdir = init_search(prefix,names)
     # initialize
     pop = [{"pos" : ca.random_vector(search_space) , "id" : i } for i in range(pop_size)]
     belief_space = ca.initialize_beliefspace(search_space)  
@@ -207,12 +137,7 @@ def search_ca(max_gens, search_space, pop_size, num_accepted, prefix):
     return belief_space["situational"]
 
 def search_hs(search_space, max_iter, mem_size, consid_rate, adjust_rate, nrange, prefix):
-    tmpdir = tmp.gettempdir()
-    f = open(prefix+'cost.txt','w')
-    f.write("# gen fitness ")
-    for n in names:
-        f.write(n+" ")
-    f.write("\n")
+    f, tmpdir = init_search(prefix,names)
     memory = [hs.create_random_harmony(search_space,id=i) for i in range(mem_size*3)]
     cost = run_particles(memory,tmpdir+'/'+prefix)
     for m in memory:
@@ -242,18 +167,8 @@ def search_hs(search_space, max_iter, mem_size, consid_rate, adjust_rate, nrange
 
 if __name__ == "__main__":
     
-    #Get information on parameters and ranges from user file
-    params = pc.rdcsv('namelist.ranges')
-    #format is:
-    #param-name,low,high
-    
-    #set dimension
-    k=len(params)
-    
-    # get names of parameters
-    names=[]
-    for i in range(0,k):
-        names.append(params[i][0])
+
+    params, names = get_params()
 
     #
     # Parsing command line arguments

@@ -7,31 +7,13 @@ import matplotlib as mpl
 from matplotlib.mlab import griddata
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import sys
+from tools import get_params
 
-def rdcsv(name):
-    f = open(name,"r")
-    data = []
-    tmp = f.readline()
-    while tmp !="":
-        onerow = tmp.split(",")
-        last = len(onerow)-1
-        k = len(onerow[last])
-        if k!= 1:
-           onerow[last] = onerow[last][0:k-1]
-        if len(onerow) !=  0:
-           data.append(onerow)
-        tmp = f.readline()
-    f.close()
-    return(data)
 
 def plot_topo(fnm,fnm2=None,show=True,savefig=False):
-    params = rdcsv('namelist.ranges')
-    print params
     
-    par_names=[]
-    for i in range(0,len(params)):
-        par_names.append(params[i][0])
-    
+    params, par_names = get_params()
+
     data = np.loadtxt(fnm)
     print np.shape(data)
     if fnm2 is not None:
