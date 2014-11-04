@@ -2,6 +2,7 @@ import os.path
 from subprocess import call
 import tempfile as tmp
 import numpy as np
+import sys
 
 def write_namelist(fname,names,particle):
     #print "write parameters to FORTRAN namelist " + fname
