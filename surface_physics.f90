@@ -29,7 +29,7 @@ module surface_physics
         character (len=256) :: name, boundary(30), alb_scheme
         character (len=3)   :: method
         integer             :: nx
-        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,amp,csh,tmin,tstic,clh
+        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,amp,csh,tmin,tstic,clh
         double precision    :: pdd_sigma, pdd_b
         double precision    :: itm_cc, itm_t
         double precision    :: tau_a, tau_f, w_crit
@@ -95,12 +95,12 @@ contains
         integer, intent(in) :: day, year
         
         ! physical parameters used in the different parameterizations
-        double precision :: tmin, albr, albl, alb_smax, alb_smin, hcrit, csh, &
-            ceff, tstic, amp, clh, &
-            pdd_sigma, pdd_b, &
-            itm_cc, itm_t, &
-            tau_a, tau_f, w_crit, &
-            mmfac, Pmaxfrac
+        double precision :: tmin, albr, albl, alb_smax, alb_smin, hcrit, rcrit, &
+                            ceff, tstic, amp, clh, csh, &
+                            pdd_sigma, pdd_b, &
+                            itm_cc, itm_t, &
+                            tau_a, tau_f, w_crit, &
+                            mmfac, Pmaxfrac
 
         ! ocean/land/ice mask
         double precision, dimension(dom%par%nx) :: land_ice_ocean
@@ -121,7 +121,7 @@ contains
 
         ! auxillary variables
         double precision, dimension(dom%par%nx) :: esat_sur, lwu, qsb, &
-            qmelt, acc, runoff,qcold, below, above, shum_sat, f_rz, &
+            qmelt, acc, runoff, qcold, below, above, shum_sat, f_rz, &
             melted_snow, melted_ice, new_ice, refreezing_max, refrozen_rain, &
             refrozen_snow, refrozen_snow_max, runoff_rain, runoff_snow, &
             shf_enhnc
@@ -159,6 +159,7 @@ contains
         alb_smax  = dom%par%alb_smax
         alb_smin  = dom%par%alb_smin
         hcrit     = dom%par%hcrit
+        rcrit     = dom%par%rcrit
         csh       = dom%par%csh
         tstic     = dom%par%tstic
         ceff      = dom%par%ceff
@@ -311,7 +312,7 @@ contains
             end if
 
             ! refreezing as fraction of melt (increases with snow height)
-            f_rz = hsnow/(hsnow+hcrit)
+            f_rz = hsnow/(hsnow+rcrit)
             if (.not. bnd%refr) then
                 !f_rz = (1._dp-dexp(-hsnow))
                 !refr = f_rz*dmin1(qcold/(rhow*clm),melt+rf)
@@ -873,7 +874,7 @@ contains
         character (len=3)   :: method 
 
         ! Declaration of namelist parameters
-        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,  &
+        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,  &
                                amp,csh,clh,tmin,&
                                tstic, &
                                tau_a, tau_f, w_crit, &
@@ -881,7 +882,7 @@ contains
                                itm_cc, itm_t
 
         namelist /surface_physics/ boundary,tstic,ceff,csh,clh,alb_smax,alb_smin,&
-                                   albr,albl,tmin,hcrit,amp,&
+                                   albr,albl,tmin,hcrit,rcrit,amp,&
                                    tau_a, tau_f, w_crit, &
                                    pdd_sigma,pdd_b,&
                                    itm_cc, itm_t, &
@@ -894,7 +895,8 @@ contains
         albl          = par%albl      ! background land (bare land)
         alb_smax      = par%alb_smax  ! maximum snow albedo (fresh snow)
         alb_smin      = par%alb_smin  ! minimum snow albedo (wet/old snow)
-        hcrit         = par%hcrit     ! critical snow height (m)
+        hcrit         = par%hcrit     ! critical snow height (m) for surface albedo
+        rcrit         = par%rcrit     ! critical snow height (m) for refreezing fraction
         amp           = par%amp       ! diurnal cycle amplitude (K)
         csh           = par%csh       ! turbulent heat exchange coeffcicient (sensible heat)
         clh           = par%clh       ! turbulent heat exchange coeffcicient (latent heat)
@@ -925,7 +927,8 @@ contains
         par%albl       = albl           ! background bare land (bare land)
         par%alb_smax   = alb_smax       ! maximum snow albedo (fresh snow)
         par%alb_smin   = alb_smin       ! minimum snow albedo (wet/old snow)
-        par%hcrit      = hcrit          ! critical snow height (m)
+        par%hcrit      = hcrit          ! critical snow height (m) for surface albedo
+        par%rcrit      = rcrit          ! critical snow height (m) for refreezing fraction
         par%amp        = amp            ! diurnal cycle amplitude (K)
         par%csh        = csh            ! turbulent heat exchange coeffcicient (sensible and latent heat)
         par%clh        = clh            ! turbulent heat exchange coeffcicient (sensible and latent heat)
@@ -1020,6 +1023,7 @@ contains
         write(*,'(a,g13.6)') 'alb_smax   ', par%alb_smax
         write(*,'(a,g13.6)') 'alb_smin   ', par%alb_smin
         write(*,'(a,g13.6)') 'hcrit      ', par%hcrit
+        write(*,'(a,g13.6)') 'rcrit      ', par%rcrit
         write(*,'(a,g13.6)') 'amp        ', par%amp
         write(*,'(a,g13.6)') 'csh        ', par%csh
         write(*,'(a,g13.6)') 'tmin       ', par%tmin
