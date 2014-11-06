@@ -22,6 +22,7 @@ module surface_physics
     double precision, parameter :: clv  = 2.5e6_dp   !< latent heat of condensation [J/kg]
     double precision, parameter :: cap  = 1000.0_dp  !< specific heat capacitiy of air [J/(kg K)]
     double precision, parameter :: rhow = 1000.0_dp  !< density of water [kg/m3]
+    double precision, parameter :: hsmax= 10.0_dp    !< maximum snow height [m]
 
 
     ! Define all parameters needed for the surface module
@@ -29,10 +30,10 @@ module surface_physics
         character (len=256) :: name, boundary(30), alb_scheme
         character (len=3)   :: method
         integer             :: nx
-        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,amp,csh,tmin,tstic,clh
+        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,amp,csh,tmin,tmax,tstic,clh
         double precision    :: pdd_sigma, pdd_b
         double precision    :: itm_cc, itm_t
-        double precision    :: tau_a, tau_f, w_crit
+        double precision    :: tau_a, tau_f, w_crit, mcrit
     end type
 
     type surface_state_class
@@ -95,11 +96,11 @@ contains
         integer, intent(in) :: day, year
         
         ! physical parameters used in the different parameterizations
-        double precision :: tmin, albr, albl, alb_smax, alb_smin, hcrit, rcrit, &
+        double precision :: tmin, tmax, albr, albl, alb_smax, alb_smin, hcrit, rcrit, &
                             ceff, tstic, amp, clh, csh, &
                             pdd_sigma, pdd_b, &
                             itm_cc, itm_t, &
-                            tau_a, tau_f, w_crit, &
+                            tau_a, tau_f, w_crit, mcrit, &
                             mmfac, Pmaxfrac
 
         ! ocean/land/ice mask
@@ -154,6 +155,7 @@ contains
         
         ! assign model parameters
         tmin      = dom%par%tmin
+        tmax      = dom%par%tmax
         albr      = dom%par%albr
         albl      = dom%par%albl
         alb_smax  = dom%par%alb_smax
@@ -172,6 +174,7 @@ contains
         tau_a     = dom%par%tau_a
         tau_f     = dom%par%tau_f
         w_crit    = dom%par%w_crit
+        mcrit     = dom%par%mcrit
 
         ! assign prognostic variables
         tsurf      = dom%now%tsurf
@@ -357,9 +360,9 @@ contains
                 end where
 
                 ! Limit snow height to maximum (eg, 5 m)
-                where (hsnow .gt. 5.0_dp) 
-                    new_ice = new_ice + hsnow - 5.0_dp 
-                    hsnow   = 5.0_dp 
+                where (hsnow .gt. hsmax) 
+                    new_ice = new_ice + hsnow - hsmax
+                    hsnow   = hsmax
                 end where
             end if
 
@@ -374,12 +377,14 @@ contains
 
             if (.not. bnd%alb) then 
                 if (trim(alb_scheme) .eq. "slater") then
-                    call albedo_slater(alb_snow,tsurf,tmin,alb_smax,alb_smin)
+                    call albedo_slater(alb_snow,tsurf,tmin,tmax,alb_smax,alb_smin)
                 end if
-                !call albedo_denby(alb_snow,melt,alb_smax,alb_smin)
+                if (trim(alb_scheme) .eq. "denby") then
+                    call albedo_denby(alb_snow,melt,alb_smax,alb_smin,mcrit)
+                end if
                 if (trim(alb_scheme) .eq. "isba") then
                     call albedo_isba(alb_snow,sf,melt,tstic,tstic,tau_a,tau_f,&
-                                     w_crit,alb_smin,alb_smax)
+                                     w_crit,mcrit,alb_smin,alb_smax)
                 end if
                 where (land_ice_ocean .eq. 2.0_dp)
                     alb = albr + f_rz*(alb_snow - albr)
@@ -463,9 +468,9 @@ contains
             ! Get the total ice accumulated for the day
             new_ice = 0.0_dp
             new_ice = refr
-            where (hsnow .gt. 5.0_dp) 
-                new_ice = new_ice + hsnow - 5.0_dp 
-                hsnow   = 5.0_dp 
+            where (hsnow .gt. hsmax) 
+                new_ice = new_ice + hsnow - hsmax
+                hsnow   = hsmax
             end where 
             
             ! Get the global surface mass balance
@@ -525,11 +530,11 @@ contains
         end if
     end subroutine diurnal_cycle
 
-    elemental subroutine albedo_isba(alb,sf,melt,tstic,tau,tau_a,tau_f,w_crn,alb_smin,alb_smax)
+    elemental subroutine albedo_isba(alb,sf,melt,tstic,tau,tau_a,tau_f,w_crn,mcrit,alb_smin,alb_smax)
 
         double precision, intent(in out) :: alb
         double precision, intent(in) :: sf, melt
-        double precision, intent(in) :: tstic, tau, tau_a, tau_f, alb_smin, alb_smax, w_crn
+        double precision, intent(in) :: tstic, tau, tau_a, tau_f, alb_smin, alb_smax, w_crn, mcrit
         double precision :: alb_dry, alb_wet, alb_new
         double precision :: w_alb
         ! where no melting occurs, albedo decreases linearly
@@ -540,7 +545,7 @@ contains
 
         ! dry/wet-averaged albedo
         w_alb = 0.0_dp
-        if (melt > 0.0_dp) w_alb = 1.0_dp-sf/melt
+        if (melt > 0.0_dp) w_alb = 1.0_dp-melt/mcrit
         w_alb = dmin1(1.0_dp,dmax1(w_alb,0.0_dp))
         alb = (1.0_dp-w_alb)*alb_dry + w_alb*alb_wet + alb_new
         ! snow albedo is between min and max value: albmax > alb > albmin
@@ -548,7 +553,7 @@ contains
     end subroutine albedo_isba
 
 
-    elemental subroutine albedo_slater(alb, tsurf, tmin, alb_smax, alb_smin)
+    elemental subroutine albedo_slater(alb, tsurf, tmin, tmax, alb_smax, alb_smin)
         ! Snow/ice albedo formulation based on Slater et. al., 1998
         ! Added and exponential dependence on snow height: if snow
         ! becomes thicker it is less perceptive to temperature induced
@@ -556,14 +561,14 @@ contains
 
         double precision, intent(out)    :: alb
         double precision, intent(in)     :: tsurf
-        double precision, intent(in)     :: tmin, alb_smax, alb_smin
+        double precision, intent(in)     :: tmin, tmax, alb_smax, alb_smin
         double precision                 :: tm
         double precision                 :: f
 
         tm  = 0.0_dp
         ! flexible factor ensures continuous polynomial
         f = 1.0_dp/(t0-tmin)
-        if (tsurf >= tmin .and. tsurf < t0) then
+        if (tsurf >= tmin .and. tsurf < tmax) then
             tm = f*(tsurf - tmin)
         end if
         if (tsurf > t0) then
@@ -579,11 +584,10 @@ contains
         ! write albedo to domain object 'now'
     end subroutine albedo_slater
 
-    elemental subroutine albedo_denby(alb,melt,alb_smax, alb_smin)
-        double precision, parameter :: mcrit = 20.0_dp/86.4e6_dp
+    elemental subroutine albedo_denby(alb,melt,alb_smax, alb_smin, mcrit)
         double precision, intent(out) :: alb
         double precision, intent(in) :: melt
-        double precision, intent(in) :: alb_smax, alb_smin
+        double precision, intent(in) :: alb_smax, alb_smin, mcrit
         alb = alb_smin + (alb_smax - alb_smin)*dexp(-melt/mcrit)
     end subroutine albedo_denby
 
@@ -875,15 +879,15 @@ contains
 
         ! Declaration of namelist parameters
         double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,  &
-                               amp,csh,clh,tmin,&
+                               amp,csh,clh,tmin,tmax,&
                                tstic, &
-                               tau_a, tau_f, w_crit, &
+                               tau_a, tau_f, w_crit, mcrit, &
                                pdd_sigma, pdd_b, &
                                itm_cc, itm_t
 
         namelist /surface_physics/ boundary,tstic,ceff,csh,clh,alb_smax,alb_smin,&
-                                   albr,albl,tmin,hcrit,rcrit,amp,&
-                                   tau_a, tau_f, w_crit, &
+                                   albr,albl,tmin,tmax,hcrit,rcrit,amp,&
+                                   tau_a, tau_f, w_crit, mcrit, &
                                    pdd_sigma,pdd_b,&
                                    itm_cc, itm_t, &
                                    method, alb_scheme
@@ -901,6 +905,7 @@ contains
         csh           = par%csh       ! turbulent heat exchange coeffcicient (sensible heat)
         clh           = par%clh       ! turbulent heat exchange coeffcicient (latent heat)
         tmin          = par%tmin      ! minimum albedo-affecting temperature
+        tmax          = par%tmax      ! maximum albedo-affecting temperature (originally 273.15K)
         tstic         = par%tstic
         method        = par%method 
         alb_scheme    = par%alb_scheme 
@@ -913,6 +918,7 @@ contains
         tau_a         = par%tau_a  
         tau_f         = par%tau_f  
         w_crit        = par%w_crit
+        mcrit         = par%mcrit
 
         ! Read parameters from input namelist file
         open(7,file=trim(filename))
@@ -933,6 +939,7 @@ contains
         par%csh        = csh            ! turbulent heat exchange coeffcicient (sensible and latent heat)
         par%clh        = clh            ! turbulent heat exchange coeffcicient (sensible and latent heat)
         par%tmin       = tmin           ! minimum albedo-affecting temperature
+        par%tmax       = tmax           ! maximum albedo-affecting temperature
         par%tstic      = tstic
         par%method     = method
         par%alb_scheme = alb_scheme
@@ -943,6 +950,7 @@ contains
         par%tau_a      = tau_a
         par%tau_f      = tau_f
         par%w_crit     = w_crit
+        par%mcrit      = mcrit
 
         return
 
@@ -1027,6 +1035,7 @@ contains
         write(*,'(a,g13.6)') 'amp        ', par%amp
         write(*,'(a,g13.6)') 'csh        ', par%csh
         write(*,'(a,g13.6)') 'tmin       ', par%tmin
+        write(*,'(a,g13.6)') 'tmax       ', par%tmax
         write(*,'(a,g13.6)') 'tstic      ', par%tstic
         write(*,'(a,g13.6)') 'clh        ', par%clh
         write(*,'(a,g13.6)') 'pdd_sigma  ', par%pdd_sigma
@@ -1036,6 +1045,7 @@ contains
         write(*,'(a,g13.6)') 'tau_a      ', par%tau_a
         write(*,'(a,g13.6)') 'tau_f      ', par%tau_f
         write(*,'(a,g13.6)') 'w_crit     ', par%w_crit
+        write(*,'(a,g13.6)') 'mcrit      ', par%mcrit
 
     end subroutine
     
