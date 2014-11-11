@@ -41,11 +41,11 @@ def plot_topo(fnm,fnm2=None,show=True,savefig=False):
                 xi = np.linspace(min(px), max(px),100)
                 yi = np.linspace(min(py), max(py),100)
                 zi = griddata(px, py, fitness, xi, yi)
-                p = axarr[i,j].pcolormesh(xi,yi,zi,cmap='winter')
+                p = axarr[i,j].pcolormesh(xi,yi,zi,cmap='Paired')
                 if fnm2 is not None:
                     px2 = data2[:,i+2]
                     py2 = data2[:,j+2]
-                    axarr[i,j].plot(px2,py2,'ko-',alpha=0.5,mew=0)
+                    axarr[i,j].plot(px2,py2,'ko-',alpha=0.5,mew=0.1)
                     axarr[i,j].plot(px2[-1],py2[-1],'rs',markersize=7)
                 axarr[i,j].set_xlabel(par_names[i])
                 axarr[i,j].set_ylabel(par_names[j])
