@@ -17,16 +17,18 @@ program run_particles
     ! declare state class
     type(state_class) :: state
 
-    integer :: i, k, n, day, year, ntime, nloop, i0, i1
+    integer :: i, b, k, n, day, year, ntime, nx, nloop, i0, i1
 
     character(len=256) :: input_forcing, output, validation, arg, nml_file, prefix
 
     logical :: file_exists
 
-    double precision :: cost, cost_stt, cost_smb, cost_alb, cost_melt
+    double precision, allocatable, dimension(:) :: cost_stt, cost_smb, cost_alb, cost_melt, cost_swnet, cost_lhf, cost_shf
+
+    double precision :: loi_mask(100), cost
 
     ! name list to drive model
-    namelist /driver/ nloop, ntime, input_forcing, output, validation 
+    namelist /driver/ nloop, ntime, nx, loi_mask, input_forcing, output, validation 
 
 #if MPI
     integer :: ierr, num_procs, my_id
@@ -56,31 +58,47 @@ program run_particles
     call getarg(3,arg)
     read(arg,*) i1
 
+    loi_mask(:) = 2.0
     nml_file = 'optimization.namelist'
     open(7,file=nml_file,action='read')
     read(7,nml=driver)
+
+    ! set vector length (from namelist file)
+    surface%par%nx = nx
+
     ! read input from file (forcing data)
-    call read_forcing(input_forcing,forc,ntime)
-    call read_validation(validation,vali,ntime)
+    call read_forcing(input_forcing,forc,ntime,nx)
+    call read_validation(validation,vali,ntime,nx)
 
     ! allocate necessary arrays for surface_physics module
     call surface_alloc(surface%now,surface%par%nx)
 
     ! initialise prognostic variables
-    surface%now%land_ice_ocean = 2.0
-    surface%now%hsnow = 1.0
-    surface%now%hice  = 0.0
-    surface%now%alb = 0.8
-    surface%now%tsurf = 260.
-    surface%now%alb_snow = 0.8
+    surface%now%land_ice_ocean(:) = loi_mask(1:nx)
+    surface%now%hsnow(:) = 1.0
+    surface%now%hice(:)  = 0.0
+    surface%now%alb(:) = 0.8
+    surface%now%tsurf(:) = 260.
+    surface%now%alb_snow(:) = 0.8
     
     ! allocate state variables
-    allocate(state%stt(ntime))
-    allocate(state%alb(ntime))
-    allocate(state%hsnow(ntime))
-    allocate(state%smb(ntime))
-    allocate(state%melt(ntime))
-    allocate(state%acc(ntime))
+    allocate(state%stt(nx,ntime))
+    allocate(state%alb(nx,ntime))
+    allocate(state%swnet(nx,ntime))
+    allocate(state%smb(nx,ntime))
+    allocate(state%melt(nx,ntime))
+    allocate(state%acc(nx,ntime))
+    allocate(state%shf(nx,ntime))
+    allocate(state%lhf(nx,ntime))
+
+    ! allocate cost variables
+    allocate(cost_stt(nx))
+    allocate(cost_smb(nx))
+    allocate(cost_alb(nx))
+    allocate(cost_melt(nx))
+    allocate(cost_swnet(nx))
+    allocate(cost_lhf(nx))
+    allocate(cost_shf(nx))
 
 #if MPI
     do i = i0+my_id,i1,num_procs
@@ -109,32 +127,33 @@ program run_particles
             do n=1,ntime ! loop over one year
 
                 ! read input for i-th day of year
-                surface%now%sf = forc%sf(day)
-                surface%now%rf = forc%rf(day)
-                surface%now%sp = forc%sp(day)
-                surface%now%lwd = forc%lwd(day)
-                surface%now%swd = forc%swd(day)
-                surface%now%wind = forc%wind(day)
-                surface%now%rhoa = forc%rhoa(day)
-                surface%now%tt = forc%tt(day)
-                surface%now%qq = forc%qq(day)
-                if (surface%bnd%tsurf)   surface%now%tsurf   = vali%stt(day)
-                if (surface%bnd%alb)     surface%now%alb     = vali%alb(day)
-                if (surface%bnd%melt)    surface%now%melt    = vali%melt(day)
-                if (surface%bnd%acc)     surface%now%acc     = vali%acc(day)
-                if (surface%bnd%massbal) surface%now%massbal = vali%smb(day)
-                if (surface%bnd%hsnow)   surface%now%hsnow   = vali%hsnow(day)
+                surface%now%sf = forc%sf(:,day)
+                surface%now%rf = forc%rf(:,day)
+                surface%now%sp = forc%sp(:,day)
+                surface%now%lwd = forc%lwd(:,day)
+                surface%now%swd = forc%swd(:,day)
+                surface%now%wind = forc%wind(:,day)
+                surface%now%rhoa = forc%rhoa(:,day)
+                surface%now%tt = forc%tt(:,day)
+                surface%now%qq = forc%qq(:,day)
+                if (surface%bnd%tsurf)   surface%now%tsurf   = vali%stt(:,day)
+                if (surface%bnd%alb)     surface%now%alb     = vali%alb(:,day)
+                if (surface%bnd%melt)    surface%now%melt    = vali%melt(:,day)
+                if (surface%bnd%acc)     surface%now%acc     = vali%acc(:,day)
+                if (surface%bnd%massbal) surface%now%massbal = vali%smb(:,day)
 
                 ! calculate prognostic and diagnsotic variables
                 call surface_mass_balance(surface,day,year)
 
                 if (k==nloop) then
-                    state%stt(day)   = surface%now%tsurf(1)
-                    state%alb(day)   = surface%now%alb(1)
-                    state%melt(day)  = surface%now%melt(1)
-                    state%acc(day)   = surface%now%acc(1)
-                    state%smb(day)   = surface%now%massbal(1)
-                    state%hsnow(day) = surface%now%hsnow(1)
+                    state%stt(:,day)   = surface%now%tsurf(:)
+                    state%alb(:,day)   = surface%now%alb(:)
+                    state%melt(:,day)  = surface%now%melt(:)
+                    state%acc(:,day)   = surface%now%acc(:)
+                    state%smb(:,day)   = surface%now%massbal(:)
+                    state%shf(:,day)   = surface%now%shf(:)
+                    state%lhf(:,day)   = surface%now%lhf(:)
+                    state%swnet(:,day) = forc%swd(:,day)*(1.0-surface%now%alb(:))
                 end if
 
                 day = day + 1
@@ -143,12 +162,18 @@ program run_particles
             ! calculate centered root mean square difference
 
         end do
-        cost_stt = calculate_crmsd(state%stt,vali%stt,ntime)
-        cost_melt = calculate_crmsd(state%melt,vali%melt,ntime)
-        cost_smb = calculate_crmsd(state%smb,vali%smb,ntime)
-        cost_alb = calculate_crmsd(state%alb,vali%alb,ntime)
-        cost = dsqrt(cost_alb**2+cost_stt**2+cost_smb**2)
-        write(2,*) cost_smb
+        cost_stt = calculate_crmsd(state%stt,vali%stt,ntime,nx)
+        cost_melt = calculate_crmsd(state%melt,vali%melt,ntime,nx)
+        cost_smb = calculate_crmsd(state%smb,vali%smb,ntime,nx)
+        cost_swnet = calculate_crmsd(state%swnet,vali%swnet,ntime,nx)
+        cost_shf = calculate_crmsd(state%shf,vali%shf,ntime,nx)
+        cost_lhf = calculate_crmsd(state%lhf,vali%lhf,ntime,nx)
+        cost = 0.0
+        do n=1,nx
+            cost = cost + cost_stt(n)**2 + cost_swnet(n)**2 + cost_smb(n)**2
+        end do
+        cost = dsqrt(cost)
+        write(2,*) cost
         close(2)
     end do
         

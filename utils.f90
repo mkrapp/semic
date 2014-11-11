@@ -20,15 +20,18 @@ module utils
 
 contains
 
-    function calculate_crmsd(x1,x2,nx) result(crmsd)
-        integer, intent(in) :: nx
-        double precision, intent(in), dimension(nx) :: x1, x2
+    function calculate_crmsd(x1,x2,ntime,nx) result(crmsd)
+        integer, intent(in) :: ntime, nx
+        double precision, intent(in), dimension(nx,ntime) :: x1, x2
         double precision :: x1_avg, x2_avg
-        double precision :: crmsd
+        double precision :: crmsd(nx)
+        integer i
 
-        x1_avg = sum(x1)/nx
-        x2_avg = sum(x2)/nx
-        crmsd = dsqrt(sum(((x1/x1_avg - 1.0)-(x2/x2_avg - 1.0))**2)/nx)
+        do i=1,nx
+            x1_avg = sum(x1(i,:))/ntime
+            x2_avg = sum(x2(i,:))/ntime
+            crmsd(i) = dsqrt(sum(((x1(i,:) - x1_avg)-(x2(i,:) - x2_avg))**2)/ntime)
+        end do
     end function
    
     subroutine read_forcing(fnm,forc,ntime,blen)
