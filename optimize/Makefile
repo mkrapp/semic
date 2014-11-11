@@ -1,7 +1,7 @@
 .PHONY: clean run_example
 FC       = gfortran
 #FFLAGS   = -Og -p -fcheck=all -fbackslash -Wall -Wextra -fbounds-check -fbacktrace
-FFLAGS   = -O2 -fbackslash -fcheck=all -cpp
+FFLAGS   = -O3 -fbackslash -fcheck=all -cpp
 LDFLAGS  = 
 INCLUDES =
 LFLAGS   =
