@@ -193,19 +193,6 @@ contains
         sf     = dom%now%sf
         rf     = dom%now%rf
         
-        ! assign variables if prescribed
-        if (bnd%tsurf)   tsurf   = dom%now%tsurf
-        if (bnd%alb)     alb     = dom%now%alb
-        if (bnd%melt)    melt    = dom%now%melt
-        if (bnd%refr)    refr    = dom%now%refr
-        if (bnd%acc)     acc     = dom%now%acc
-        if (bnd%massbal) massbal = dom%now%massbal
-        if (bnd%lhf)     lhf     = dom%now%lhf
-        if (bnd%shf)     shf     = dom%now%shf
-        if (bnd%subl)    subl    = dom%now%subl*rhow
-        if (bnd%hsnow)   hsnow   = dom%now%hsnow
-
-
         select case(method)
         case("ebm")
             
