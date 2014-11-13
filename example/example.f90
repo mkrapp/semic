@@ -20,7 +20,7 @@ program example
 
     double precision :: total_time, start, finish
 
-    double precision :: loi_mask(100)
+    integer :: loi_mask(100)
 
     ! name list to drive model
     namelist /driver/ nloop, ntime, nx, loi_mask, input_forcing, output, validation 
@@ -49,7 +49,7 @@ program example
     end if
     write(*,*) "\x1B[32mexample:\x1B[0m read namelist from file: ", trim(nml_file)
 
-    loi_mask(:) = 2.0
+    loi_mask(:) = 2
     open(7,file=nml_file)
     read(7,nml=driver)
 
@@ -98,7 +98,7 @@ program example
             surface%now%swd = forc%swd(:,day)
             surface%now%wind = forc%wind(:,day)
             surface%now%rhoa = forc%rhoa(:,day)
-            surface%now%tt = forc%tt(:,day)
+            surface%now%tatm = forc%tt(:,day)
             surface%now%qq = forc%qq(:,day)
             if (surface%bnd%tsurf)   surface%now%tsurf   = vali%stt(:,day)
             if (surface%bnd%alb)     surface%now%alb     = vali%alb(:,day)
