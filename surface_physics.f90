@@ -22,7 +22,7 @@ module surface_physics
     double precision, parameter :: clv  = 2.5e6_dp   !< latent heat of condensation [J/kg]
     double precision, parameter :: cap  = 1000.0_dp  !< specific heat capacitiy of air [J/(kg K)]
     double precision, parameter :: rhow = 1000.0_dp  !< density of water [kg/m3]
-    double precision, parameter :: hsmax= 10.0_dp    !< maximum snow height [m]
+    double precision, parameter :: hsmax= 5.0_dp    !< maximum snow height [m]
 
 
     ! Define all parameters needed for the surface module
@@ -282,7 +282,7 @@ contains
                 melt_ice  = melt-melt_snow
 
                 ! actual melt is sum of melted snow and ice (melted snow over land)
-                where (land_ice_ocean > 2)
+                where (land_ice_ocean == 2)
                     melt = melt_snow + melt_ice
                 elsewhere
                     melt = melt_snow
@@ -301,20 +301,20 @@ contains
                 ! potential refeezing snow
                 refrozen_snow = dmax1(refr-refrozen_rain,0.0_dp)
                 ! actual refreezing snow
-                refrozen_snow = f_rz*dmin1(refrozen_snow,melt_snow)
+                refrozen_snow = dmin1(refrozen_snow,melt_snow)
                 ! actual refreezing
+                refrozen_rain =  f_rz*refrozen_rain
+                refrozen_snow =  f_rz*refrozen_snow
                 refr = refrozen_rain + refrozen_snow
             end if 
 
             ! 3) runoff
             runoff = melt + rf - refrozen_rain
 
-            ! 4) accumulation: sum of all incoming solid water
+            ! 4) accumulation: sum of all incoming solid water (just diagnostic, here)
             if (.not. bnd%acc) then
-                acc = sf - subl/rhow + refrozen_rain
-                !acc = sf - subl/rhow + refr
+                acc = sf - subl/rhow + refr
             end if
-
             
             ! 5) surface mass balance
             massbal_snow = sf - subl/rhow - melt_snow
@@ -329,14 +329,14 @@ contains
             ! Relax snow height to maximum (eg, 5 m)
             snow_to_ice  = dmax1(0.d0,hsnow-hsmax) 
             hsnow        = hsnow - snow_to_ice
-            massbal_ice  = snow_to_ice/tstic - melt_ice + refrozen_rain   ! Use to force ice sheet model
+            massbal_ice  = snow_to_ice/tstic - melt_ice + refr   ! Use to force ice sheet model
             new_ice      = massbal_ice*tstic ! update new ice budget: remove or add ice
 
             if (.not. bnd%massbal) then
                 where (land_ice_ocean == 2)
-                    massbal = massbal_snow + massbal_ice
+                    massbal = massbal_snow + massbal_ice - snow_to_ice/tstic
                 elsewhere
-                    massbal = massbal_snow + dmax1(0.0_dp,massbal_ice)
+                    massbal = massbal_snow + dmax1(0.0_dp,massbal_ice - snow_to_ice/tstic)
                 end where
             end if
 
