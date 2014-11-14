@@ -22,7 +22,7 @@ module surface_physics
     double precision, parameter :: clv  = 2.5e6_dp   !< latent heat of condensation [J/kg]
     double precision, parameter :: cap  = 1000.0_dp  !< specific heat capacitiy of air [J/(kg K)]
     double precision, parameter :: rhow = 1000.0_dp  !< density of water [kg/m3]
-    double precision, parameter :: hsmax= 5.0_dp    !< maximum snow height [m]
+    double precision, parameter :: hsmax= 5.0_dp     !< maximum snow height [m]
 
 
     ! Define all parameters needed for the surface module
@@ -30,7 +30,8 @@ module surface_physics
         character (len=256) :: name, boundary(30), alb_scheme
         character (len=3)   :: method
         integer             :: nx, n_ksub
-        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,amp,csh,tmin,tmax,tstic,clh
+        double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,amp,csh,&
+                               tmin,tmax,tstic,clh, shf_enh, lhf_enh
         double precision    :: pdd_sigma, pdd_b
         double precision    :: itm_cc, itm_t
         double precision    :: tau_a, tau_f, w_crit, mcrit
@@ -42,7 +43,7 @@ module surface_physics
         ! Model variables
         double precision, allocatable, dimension(:) :: tatm, t2m, tsurf
         double precision, allocatable, dimension(:) :: hsnow, hice, alb, alb_snow, &
-            melt, refr, massbal, acc, abl, lhf, shf, subl
+            melt, refr, massbal, acc, abl, lhf, shf, subl, massbal_snow, massbal_ice
         ! Forcing variables
         double precision, allocatable, dimension(:) :: sf, rf, sp, lwd, swd,&
             wind, rhoa, qq
@@ -100,12 +101,12 @@ contains
         
         ! physical parameters used in the different parameterizations
         double precision :: tmin, tmax, albr, albl, alb_smax, alb_smin, hcrit, rcrit, &
-                            ceff, tstic, amp, clh, csh, &
+                            ceff, tstic, amp, clh, csh, shf_enh, lhf_enh, &
                             pdd_sigma, pdd_b, &
                             itm_cc, itm_t, &
                             tau_a, tau_f, w_crit, mcrit, &
                             mmfac, Pmaxfrac, &
-                            Ts_wt(2), afac,tmid
+                            Ts_wt(2), afac,tmid 
         double precision :: tsticsub
         integer :: ksub, n_ksub
 
@@ -131,7 +132,7 @@ contains
             melted_snow, melted_ice, new_ice, refreezing_max, refrozen_rain, &
             refrozen_snow, refrozen_snow_max, runoff_rain, runoff_snow, snow_to_ice
 
-        double precision, dimension(dom%par%nx) :: hsnow_max, melt_snow, melt_ice, &
+        double precision, dimension(dom%par%nx) :: melt_snow, melt_ice, &
                                                    massbal_snow, massbal_ice
             
         ! use method to calculate melt: "ebm", "itm", or "pdd"
@@ -170,6 +171,8 @@ contains
         hcrit     = dom%par%hcrit
         rcrit     = dom%par%rcrit
         csh       = dom%par%csh
+        shf_enh   = dom%par%shf_enh
+        lhf_enh   = dom%par%lhf_enh
         tstic     = dom%par%tstic
         ceff      = dom%par%ceff
         amp       = dom%par%amp
@@ -204,11 +207,7 @@ contains
         sf     = dom%now%sf
         rf     = dom%now%rf
         
-        ! assign values from previous timestep 
-        melt    = dom%now%melt 
-        massbal = dom%now%massbal 
-
-        hsnow_max    = 10.d0 
+        ! initialize diagnostics
         melt_snow    = 0.d0 
         melt_ice     = 0.d0 
         massbal_snow = 0.d0 
@@ -224,17 +223,19 @@ contains
             tsurf_new = tsurf
             do ksub = 1, n_ksub
 
-                ! Update the 2m temperature too 
-                where (land_ice_ocean == 2)             ! ice
-                    t2m = Ts_wt(2)*tsurf_new + (1.0_dp-Ts_wt(2))*tatm
-                elsewhere
-                    t2m = Ts_wt(1)*tsurf_new + (1.0_dp-Ts_wt(1))*tatm
-                end where
+                ! Update the 2m temperature
+                if (.not. bnd%t2m) then  
+                    where (land_ice_ocean == 2)             ! ice
+                        t2m = Ts_wt(2)*tsurf_new + (1.0_dp-Ts_wt(2))*tatm
+                    elsewhere
+                        t2m = Ts_wt(1)*tsurf_new + (1.0_dp-Ts_wt(1))*tatm
+                    end where
+                end if
 
                 ! bulk formulation of sensible heat flux (W/m^2)
                 if (.not. bnd%shf) then
                     shf = 0.0_dp
-                    call sensible_heat_flux(tsurf_new,t2m,usurf,rhoatm,csh,cap,shf)
+                    call sensible_heat_flux(tsurf_new, t2m, usurf, rhoatm, csh, shf_enh, cap, shf)
                 end if
 
                 ! bulk formulation of latent heat flux (W/m^2), only accounts for sublimation/deposition,
@@ -243,7 +244,8 @@ contains
                     subl = 0.0_dp
                     evap = 0.0_dp
                     lhf  = 0.0_dp
-                    call latent_heat_flux(tsurf_new, usurf, shum, psurf, rhoatm, clh, eps, cls, clv, lhf, subl, evap)
+                    call latent_heat_flux(tsurf_new, usurf, shum, psurf, rhoatm, land_ice_ocean, &
+                                          clh, lhf_enh, eps, cls, clv, lhf, subl, evap)
                 end if
 
                 ! outgoing long-wave flux following Stefan-Boltzmann's law (W/m^2)
@@ -477,39 +479,55 @@ contains
         if (.not. bnd%hsnow)   dom%now%hsnow   = hsnow
         dom%now%hice    = new_ice + dom%now%hice
         dom%now%alb_snow = alb_snow
+        dom%now%massbal_snow = massbal_snow
+        dom%now%massbal_ice  = massbal_ice
 
     end subroutine surface_mass_balance
 
-    elemental subroutine sensible_heat_flux(ts,ta,wind,rhoa,csh,cap,shf)
+    elemental subroutine sensible_heat_flux(ts,ta,wind,rhoa,csh,enh,cap,shf)
         double precision, intent(in) :: ts, ta, wind, rhoa
-        double precision, intent(in) :: csh, cap
+        double precision, intent(in) :: csh, cap, enh
         double precision, intent(out) :: shf
+        double precision :: coeff
+
+        ! enhancement over land
+        if ( wind*(ts-ta) > 0.0_dp ) then
+            coeff = enh*csh
+        else
+            coeff = csh
+        end if
         
-        shf = csh*cap*rhoa*wind*(ts-ta)
+        shf = coeff*cap*rhoa*wind*(ts-ta)
     end subroutine
 
-    elemental subroutine latent_heat_flux(ts, wind, shum, sp, rhoatm, clh, eps, cls, clv, lhf, subl, evap)
+    elemental subroutine latent_heat_flux(ts, wind, shum, sp, rhoatm, lmask, clh, enh, eps, cls, clv, lhf, subl, evap)
         double precision, intent(in)  :: ts, shum, sp, rhoatm, wind
-        double precision, intent(in)  :: clh, eps, cls, clv
+        double precision, intent(in)  :: clh, eps, cls, clv, enh
+        integer, intent(in)  :: lmask
         double precision, intent(out) :: lhf, subl, evap
-        double precision :: esat_sur, shum_sat
+        double precision :: esat_sur, shum_sat, coeff
 
         subl = 0.0_dp
         evap = 0.0_dp
         lhf  = 0.0_dp
+        if (lmask == 1) then
+            coeff = enh*clh
+        else
+            coeff = clh
+        end if
         if (ts < t0) then
             esat_sur = ei_sat(ts)
             ! specific humidity at surface (assumed to be saturated) is
             shum_sat = esat_sur*eps/(esat_sur*(eps-1.0_dp)+sp)
             ! sublimation/deposition depends on air specific humidity
-            subl = clh*wind*rhoatm*(shum_sat - shum)
+            subl = coeff*wind*rhoatm*(shum_sat - shum)
             lhf = subl*cls
         else
             esat_sur = ew_sat(ts)
             ! evaporation/condensation
             ! specific humidity at surface (assumed to be saturated) is
             shum_sat = esat_sur*eps/(esat_sur*(eps-1.0_dp)+sp)
-            evap = clh*wind*rhoatm*(shum_sat - shum)
+            evap = coeff*wind*rhoatm*(shum_sat - shum)
             lhf = evap*clv
         end if
     end subroutine
@@ -903,7 +921,7 @@ contains
 
         ! Declaration of namelist parameters
         double precision    :: ceff,albr,albl,alb_smax,alb_smin,hcrit,rcrit,  &
-                               amp,csh,clh,tmin,tmax,&
+                               amp,csh,clh,shf_enh,lhf_enh,tmin,tmax,&
                                tstic, Ts_wt(2), &
                                afac,tmid, &
                                tau_a, tau_f, w_crit, mcrit, &
@@ -911,8 +929,9 @@ contains
                                itm_cc, itm_t
         integer :: n_ksub
 
-        namelist /surface_physics/ boundary,tstic,ceff,csh,clh,alb_smax,alb_smin,&
-                                   albr,albl,tmin,tmax,hcrit,rcrit,amp,&
+        namelist /surface_physics/ boundary,tstic,ceff,csh,clh,shf_enh,lhf_enh,&
+                                   alb_smax,alb_smin,albr,albl,&
+                                   tmin,tmax,hcrit,rcrit,amp,&
                                    tau_a, tau_f, w_crit, mcrit, &
                                    pdd_sigma,pdd_b,&
                                    itm_cc, itm_t, &
@@ -953,6 +972,8 @@ contains
         tmid          = par%tmid 
 
         n_ksub        = par%n_ksub
+        shf_enh       = par%shf_enh
+        lhf_enh       = par%lhf_enh
 
         ! Read parameters from input namelist file
         open(7,file=trim(filename))
@@ -991,6 +1012,8 @@ contains
         par%tmid       = tmid
 
         par%n_ksub     = n_ksub
+        par%shf_enh    = shf_enh
+        par%lhf_enh    = lhf_enh
 
         return
 
@@ -1090,6 +1113,8 @@ contains
         write(*,'(a,g13.6)') 'tau_f      ', par%tau_f
         write(*,'(a,g13.6)') 'w_crit     ', par%w_crit
         write(*,'(a,g13.6)') 'mcrit      ', par%mcrit
+        write(*,'(a,g13.6)') 'shf_enh    ', par%shf_enh
+        write(*,'(a,g13.6)') 'lhf_enh    ', par%lhf_enh
 
     end subroutine
     
