@@ -1,8 +1,8 @@
 &driver
   nloop = 10,
   ntime = 365,
-  nx    = 1,
-  loi_mask(1) = 2,
-  input_forcing = "../example/data/c18_input.txt",
-  validation = "../example/data/c18_output.txt",
+  nx    = 7,
+  loi_mask(1:3) = 1,1,1,
+  input_forcing = "../example/data/transect_input.txt",
+  validation = "../example/data/transect_output.txt",
 /

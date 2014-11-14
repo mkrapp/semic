@@ -134,7 +134,7 @@ program run_particles
                 surface%now%swd = forc%swd(:,day)
                 surface%now%wind = forc%wind(:,day)
                 surface%now%rhoa = forc%rhoa(:,day)
-                surface%now%tt = forc%tt(:,day)
+                surface%now%tatm = forc%tt(:,day)
                 surface%now%qq = forc%qq(:,day)
                 if (surface%bnd%tsurf)   surface%now%tsurf   = vali%stt(:,day)
                 if (surface%bnd%alb)     surface%now%alb     = vali%alb(:,day)
@@ -170,7 +170,7 @@ program run_particles
         cost_lhf = calculate_crmsd(state%lhf,vali%lhf,ntime,nx)
         cost = 0.0
         do n=1,nx
-            cost = cost + cost_stt(n)**2 + cost_swnet(n)**2 + cost_smb(n)**2
+            cost = cost + cost_swnet(n)**2
         end do
         cost = dsqrt(cost)
         write(2,*) cost
