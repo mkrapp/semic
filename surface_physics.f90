@@ -876,6 +876,8 @@ contains
         allocate(now%melt(npts))
         allocate(now%refr(npts))
         allocate(now%massbal(npts))
+        allocate(now%massbal_snow(npts))
+        allocate(now%massbal_ice(npts))
         allocate(now%acc(npts))
         allocate(now%lhf(npts))
         allocate(now%shf(npts))
@@ -903,7 +905,8 @@ contains
 
         deallocate(now%tatm,now%t2m,now%tsurf,now%alb,&
             now%hsnow,now%refr, &
-            now%massbal,now%shf,now%lhf)
+            now%massbal,now%massbal_snow,now%massbal_ice,&
+            now%shf,now%lhf)
         deallocate(now%sf,now%rf,now%sp,&
             now%lwd,now%swd,now%wind,&
             now%rhoa,now%qq)
