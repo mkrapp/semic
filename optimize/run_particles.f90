@@ -74,7 +74,7 @@ program run_particles
     call surface_alloc(surface%now,surface%par%nx)
 
     ! initialise prognostic variables
-    surface%now%land_ice_ocean(:) = loi_mask(1:nx)
+    surface%now%mask(:) = loi_mask(1:nx)
     surface%now%hsnow(:) = 1.0
     surface%now%hice(:)  = 0.0
     surface%now%alb(:) = 0.8
@@ -127,30 +127,30 @@ program run_particles
             do n=1,ntime ! loop over one year
 
                 ! read input for i-th day of year
-                surface%now%sf = forc%sf(:,day)
-                surface%now%rf = forc%rf(:,day)
-                surface%now%sp = forc%sp(:,day)
-                surface%now%lwd = forc%lwd(:,day)
-                surface%now%swd = forc%swd(:,day)
+                surface%now%sf   = forc%sf(:,day)
+                surface%now%rf   = forc%rf(:,day)
+                surface%now%sp   = forc%sp(:,day)
+                surface%now%lwd  = forc%lwd(:,day)
+                surface%now%swd  = forc%swd(:,day)
                 surface%now%wind = forc%wind(:,day)
                 surface%now%rhoa = forc%rhoa(:,day)
-                surface%now%tatm = forc%tt(:,day)
-                surface%now%qq = forc%qq(:,day)
-                if (surface%bnd%tsurf)   surface%now%tsurf   = vali%stt(:,day)
-                if (surface%bnd%alb)     surface%now%alb     = vali%alb(:,day)
-                if (surface%bnd%melt)    surface%now%melt    = vali%melt(:,day)
-                if (surface%bnd%acc)     surface%now%acc     = vali%acc(:,day)
-                if (surface%bnd%massbal) surface%now%massbal = vali%smb(:,day)
+                surface%now%t2m  = forc%tt(:,day)
+                surface%now%qq   = forc%qq(:,day)
+                if (surface%bnd%tsurf) surface%now%tsurf = vali%stt(:,day)
+                if (surface%bnd%alb)   surface%now%alb   = vali%alb(:,day)
+                if (surface%bnd%melt)  surface%now%melt  = vali%melt(:,day)
+                if (surface%bnd%acc)   surface%now%acc   = vali%acc(:,day)
+                if (surface%bnd%smb)   surface%now%smb   = vali%smb(:,day)
 
                 ! calculate prognostic and diagnsotic variables
-                call surface_mass_balance(surface,day,year)
+                call surface_mass_balance(surface%now,surface%par,surface%bnd,day,year)
 
                 if (k==nloop) then
                     state%stt(:,day)   = surface%now%tsurf(:)
                     state%alb(:,day)   = surface%now%alb(:)
                     state%melt(:,day)  = surface%now%melt(:)
                     state%acc(:,day)   = surface%now%acc(:)
-                    state%smb(:,day)   = surface%now%massbal(:)
+                    state%smb(:,day)   = surface%now%smb(:)
                     state%shf(:,day)   = surface%now%shf(:)
                     state%lhf(:,day)   = surface%now%lhf(:)
                     state%swnet(:,day) = forc%swd(:,day)*(1.0-surface%now%alb(:))

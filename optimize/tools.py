@@ -28,14 +28,12 @@ def write_namelist(fname,names,particle):
 #    f.write('  mcrit = 6.0e-8,\n')
     f.write('  lhf_enh = 1.0,\n')
     f.write('  shf_enh = 3.5,\n')
-    f.write('  Ts_wt = 0.0 0.0,\n')
     f.write('  afac  = -0.18,\n')
     f.write('  tmid  = 275.35,\n')
     f.write('  n_ksub = 3,\n')
     # loop through parameter values
     for j in range(0,len(names)):
     	f.write('  ' + names[j] + ' = %.8f' % particle["pos"][j] + ',\n')
-    f.write('  method = "ebm",\n')
     f.write('  alb_scheme = "slater",\n')
     f.write('/\n')
     f.write('&smb_output\n')
