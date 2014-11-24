@@ -71,7 +71,7 @@ program example
     call surface_alloc(surface%now,surface%par%nx)
 
     ! initialise prognostic variables
-    surface%now%land_ice_ocean(:) = loi_mask(:nx)
+    surface%now%mask(:) = loi_mask(:nx)
     surface%now%hsnow(:) = 1.0
     surface%now%hice(:)  = 0.0
     surface%now%alb(:) = 0.8
@@ -98,25 +98,25 @@ program example
             surface%now%swd = forc%swd(:,day)
             surface%now%wind = forc%wind(:,day)
             surface%now%rhoa = forc%rhoa(:,day)
-            surface%now%tatm = forc%tt(:,day)
+            surface%now%t2m = forc%tt(:,day)
             surface%now%qq = forc%qq(:,day)
-            if (surface%bnd%tsurf)   surface%now%tsurf   = vali%stt(:,day)
-            if (surface%bnd%alb)     surface%now%alb     = vali%alb(:,day)
-            if (surface%bnd%melt)    surface%now%melt    = vali%melt(:,day)
-            if (surface%bnd%acc)     surface%now%acc     = vali%acc(:,day)
-            if (surface%bnd%massbal) surface%now%massbal = vali%smb(:,day)
+            if (surface%bnd%tsurf) surface%now%tsurf = vali%stt(:,day)
+            if (surface%bnd%alb)   surface%now%alb   = vali%alb(:,day)
+            if (surface%bnd%melt)  surface%now%melt  = vali%melt(:,day)
+            if (surface%bnd%acc)   surface%now%acc   = vali%acc(:,day)
+            if (surface%bnd%smb)   surface%now%smb   = vali%smb(:,day)
 !            if (surface%bnd%hsnow)   surface%now%hsnow   = vali%hsnow(:,day)
 
             ! calculate prognostic and diagnsotic variables
             call cpu_time(start)
-            call surface_mass_balance(surface,day,year)
+            call surface_mass_balance(surface%now,surface%par,surface%bnd,day,year)
             call cpu_time(finish)
             total_time = total_time + (finish - start)
 
             ! write output at the end of outer loop
             if (k==nloop) then
                 write(2,*) surface%now%tsurf, surface%now%alb,     &
-                           forc%swd(:,day)*(1.0-surface%now%alb), surface%now%massbal, &
+                           forc%swd(:,day)*(1.0-surface%now%alb), surface%now%smb, &
                            surface%now%melt, surface%now%acc, &
                            surface%now%shf, surface%now%lhf
             end if
