@@ -1,0 +1,7 @@
+*.swp
+*.pyc
+*_cost.txt
+*.mod
+*.x
+*.o
+*.out
