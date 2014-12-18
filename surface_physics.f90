@@ -30,7 +30,7 @@ module surface_physics
         character (len=256) :: name, boundary(30), alb_scheme
         integer             :: nx        !< number of grid points
         integer             :: n_ksub    !< number of sub-daily time steps
-        double precision    :: ceff      !< effective volumetric heat capacity of snow/ice [J/m3]
+        double precision    :: ceff      !< surface specific heat capacity of snow/ice [J/Km2]
         double precision    :: albr      !< background albedo (bare ice) [no unit]
         double precision    :: albl      !< background albedo (bare land) [no unit]
         double precision    :: alb_smax  !< maximum snow albedo (fresh snow) [no unit]
@@ -43,6 +43,7 @@ module surface_physics
         double precision    :: tmin      !< minimum temperature for which albedo decline becomes effective ("slater") [K]
         double precision    :: tmax      !< maximum temperature for which albedo decline becomes effective ("slater") [K]
         double precision    :: tstic     !< time step [s]
+        double precision    :: tsticsub  !< sub-time step [s]
         double precision    :: shf_enh   !< sensible heat flux enhancement factor for positive u*(tsurf-t2m) [no unit]
         double precision    :: lhf_enh   !< latent heat flux enhancement factor over land (mask==1) [no unit]
         double precision    :: tau_a     !< dry albedo decline for "isba" albedo scheme [1/day]
@@ -55,13 +56,15 @@ module surface_physics
 
     type surface_state_class
         ! Model variables
-        double precision, allocatable, dimension(:) :: t2m      !< 2m air temperature [K]
-        double precision, allocatable, dimension(:) :: tsurf    !< surface temperature [K]
-        double precision, allocatable, dimension(:) :: hsnow    !< snow pack height (water equivalent) [m]
-        double precision, allocatable, dimension(:) :: hice     !< ice thickness (water equivalent) [m]
-        double precision, allocatable, dimension(:) :: alb      !< grid-averaged albedo [no unit]
-        double precision, allocatable, dimension(:) :: alb_snow !< snow albedo [no unit]
-        double precision, allocatable, dimension(:) :: melt     !< surface melt [m/s]
+        double precision, allocatable, dimension(:) :: t2m         !< 2m air temperature [K]
+        double precision, allocatable, dimension(:) :: tsurf       !< surface temperature [K]
+        double precision, allocatable, dimension(:) :: hsnow       !< snow pack height (water equivalent) [m]
+        double precision, allocatable, dimension(:) :: hice        !< ice thickness (water equivalent) [m]
+        double precision, allocatable, dimension(:) :: alb         !< grid-averaged albedo [no unit]
+        double precision, allocatable, dimension(:) :: alb_snow    !< snow albedo [no unit]
+        double precision, allocatable, dimension(:) :: melt        !< potential surface melt [m/s]
+        double precision, allocatable, dimension(:) :: melted_snow !< actual melted snow [m/s]
+        double precision, allocatable, dimension(:) :: melted_ice  !< actual melted ice [m/s]
         double precision, allocatable, dimension(:) :: refr     !< refreezing [m/s]
         double precision, allocatable, dimension(:) :: smb      !< surface mass balance [m/s]
         double precision, allocatable, dimension(:) :: acc      !< surface accumulation [m/s]
@@ -72,7 +75,7 @@ module surface_physics
         double precision, allocatable, dimension(:) :: evap     !< evaporation [??]
         double precision, allocatable, dimension(:) :: smb_snow !< surface mass balance of snow [m/s]
         double precision, allocatable, dimension(:) :: smb_ice  !< surface mass balance of ice [m/s]
-        double precision, allocatable, dimension(:) :: runoff   !< surface runoff [m/s]
+        double precision, allocatable, dimension(:) :: runoff   !< potential surface runoff [m/s]
         ! Forcing variables
         double precision, allocatable, dimension(:) :: sf       !< snow fall [m/s]
         double precision, allocatable, dimension(:) :: rf       !< rain fall [m/s]
@@ -100,7 +103,7 @@ module surface_physics
     end type
 
     private
-    public :: surface_mass_balance
+    public :: mass_balance, energy_balance, surface_energy_and_mass_balance
     public :: surface_physics_class, surface_state_class, surface_param_class
     public :: surface_physics_par_load, surface_alloc, surface_dealloc
     public :: surface_boundary_define, surface_physics_average
@@ -111,10 +114,75 @@ module surface_physics
 
 contains
 
+    subroutine surface_energy_and_mass_balance(now,par,bnd,day,year)
+        type(surface_state_class), intent(in out) :: now
+        type(boundary_opt_class),  intent(in)     :: bnd
+        type(surface_param_class), intent(in)     :: par
+
+        integer, intent(in) :: day, year
+        
+        integer :: ksub
+
+        ! quasi-relaxation loop for energy and mass balance (without hsnow update)
+        do ksub = 1, par%n_ksub
+            call energy_balance(now,par,bnd,day,year)
+        end do
+        call mass_balance(now,par,bnd,day,year)
+    end subroutine
+
+    subroutine energy_balance(now,par,bnd,day,year)
+        type(surface_state_class), intent(in out) :: now
+        type(boundary_opt_class),  intent(in)     :: bnd
+        type(surface_param_class), intent(in)     :: par
+
+        integer, intent(in) :: day, year
+
+        ! auxillary variables
+        double precision, dimension(par%nx) :: qsb, qmr
+
+        ! bulk formulation of sensible heat flux (W/m^2)
+        if (.not. bnd%shf) then
+            now%shf = 0.0_dp
+            call sensible_heat_flux(now%tsurf, now%t2m, now%wind, now%rhoa, par%csh, par%shf_enh, cap, now%shf)
+        end if
+
+        ! bulk formulation of latent heat flux (W/m^2), only accounts for sublimation/deposition,
+        ! not for evaporation/condensation (would require estimate of liquid water content)
+        if (.not. bnd%lhf) then  
+            now%subl = 0.0_dp
+            now%evap = 0.0_dp
+            now%lhf  = 0.0_dp
+            call latent_heat_flux(now%tsurf, now%wind, now%qq, now%sp, now%rhoa, now%mask, &
+                                  par%clh, par%lhf_enh, eps, cls, clv, now%lhf, now%subl, now%evap)
+        end if
+
+        ! outgoing long-wave flux following Stefan-Boltzmann's law (W/m^2)
+        now%lwu = 0.0_dp
+        call longwave_upward(now%tsurf,sigm,now%lwu)
+
+        ! residual energy from melting and refreezing
+        qmr = 0.0_dp
+        where (now%mask == 2)         ! ice
+            qmr = (now%melted_snow + now%melted_ice - now%refr)*rhow*clm
+        elsewhere                               ! land and sea
+            qmr = (now%melted_snow - now%refr)*rhow*clm
+        end where
+
+        ! surface energy balance of incoming and outgoing surface fluxes (W/m^2)
+        qsb  = (1.0_dp-now%alb)*now%swd + now%lwd - now%lwu - now%shf - now%lhf - qmr
+
+        ! update surface temperature according to surface energy balance
+        if (.not. bnd%tsurf) then
+            now%tsurf = now%tsurf + qsb*par%tsticsub/par%ceff 
+        end if
+        now%t2m   = now%t2m + (now%shf+now%lhf)*par%tsticsub/par%ceff  
+
+    end subroutine
+
     !! **Subroutine**  : surface_mass_balance \n
     !! **Author**  : Mario Krapp \n 
     !! **Purpose** : Main routine to calculate
-    !!                * surface temperature (K)
+    !!                * surface mass balance (m/s)
     !!                * surface (snow/ice) albedo
     !!                * snow height (m)
     !!               based on surface energy and mass balance.
@@ -130,7 +198,7 @@ contains
     !!                * shortwave radiation
     !!
     !! ####################################################################
-    subroutine surface_mass_balance(now,par,bnd,day,year)
+    subroutine mass_balance(now,par,bnd,day,year)
 
         type(surface_state_class), intent(in out) :: now
         type(boundary_opt_class),  intent(in)     :: bnd
@@ -138,69 +206,18 @@ contains
 
         integer, intent(in) :: day, year
         
-        double precision :: tsticsub
-        integer :: ksub
-
-        ! prognostic variables
-        double precision, dimension(par%nx) :: tsurf_new
-        double precision, dimension(par%nx) :: t2m_new, ceff_new 
-
         ! auxillary variables
-        double precision, dimension(par%nx) :: qsb, qmelt, qcold, &
-            below, above, f_rz, f_alb, refrozen_rain, &
-            refrozen_snow, snow_to_ice, melt_snow, melt_ice
-
-
-        tsticsub = par%tstic / dble(par%n_ksub)
-
-
-        ! initialize new surface temperature
-        tsurf_new = now%tsurf
-        t2m_new   = now%t2m 
-        do ksub = 1, par%n_ksub
-
-            ! bulk formulation of sensible heat flux (W/m^2)
-            if (.not. bnd%shf) then
-                now%shf = 0.0_dp
-                call sensible_heat_flux(tsurf_new, t2m_new, now%wind, now%rhoa, par%csh, par%shf_enh, cap, now%shf)
-            end if
-
-            ! bulk formulation of latent heat flux (W/m^2), only accounts for sublimation/deposition,
-            ! not for evaporation/condensation (would require estimate of liquid water content)
-            if (.not. bnd%lhf) then  
-                now%subl = 0.0_dp
-                now%evap = 0.0_dp
-                now%lhf  = 0.0_dp
-                call latent_heat_flux(tsurf_new, now%wind, now%qq, now%sp, now%rhoa, now%mask, &
-                                      par%clh, par%lhf_enh, eps, cls, clv, now%lhf, now%subl, now%evap)
-            end if
-
-            ! outgoing long-wave flux following Stefan-Boltzmann's law (W/m^2)
-            now%lwu = 0.0_dp
-            call longwave_upward(tsurf_new,sigm,now%lwu)
-
-            ! surface energy balance of incoming and outgoing surface fluxes (W/m^2)
-            qsb  = (1.0_dp-now%alb)*now%swd + now%lwd - now%lwu - now%shf - now%lhf
-
-            ! Determine effective heat capacity
-            ! Over ice, it is full heat capacity
-            ! Over land, decreases with snow thickness starting at 1m depth
-            ceff_new = par%ceff 
-
-            ! update surface temperature according to surface energy balance
-            tsurf_new = tsurf_new + qsb*tsticsub/ceff_new 
-            t2m_new   = t2m_new  + (now%shf+now%lhf)*tsticsub/ceff_new  
-        end do
-        ! End sub-daily loop 
+        double precision, dimension(par%nx) :: qmelt, qcold, &
+            below, above, f_rz, f_alb, refrozen_rain, refrozen_snow, snow_to_ice 
 
         ! Calculate above-/below-freezing temperatures for a given mean temperature
-        call diurnal_cycle(par%amp,tsurf_new-t0,above,below)
+        call diurnal_cycle(par%amp,now%tsurf-t0,above,below)
 
         where (now%mask >= 1)
             ! melt energy where temperature exceeds freezing (difference to heat at freezing)
-            qmelt = dmax1(0.0_dp,(above)*par%ceff/par%tstic)
+            qmelt = dmax1(0.0_dp,(above)*par%ceff/par%tsticsub)
             ! watch the sign
-            qcold = dmax1(0.0_dp,abs(below)*par%ceff/par%tstic)
+            qcold = dmax1(0.0_dp,abs(below)*par%ceff/par%tsticsub)
         else where
             qmelt = 0.0_dp
             qcold = 0.0_dp
@@ -213,15 +230,15 @@ contains
         if (.not. bnd%melt) then
             ! potential melt
             now%melt = qmelt/(rhow*clm)
-            ! separate potential melt for snow and ice
-            melt_snow = dmin1(now%melt,now%hsnow/par%tstic)
-            melt_ice  = now%melt-melt_snow
+            ! separate potential melt into actual melt of snow and ice
+            now%melted_snow = dmin1(now%melt,now%hsnow/par%tsticsub)
+            now%melted_ice  = now%melt-now%melted_snow
 
             ! actual melt is sum of melted snow and ice (melted snow over land)
             where (now%mask == 2)
-                now%melt = melt_snow + melt_ice
+                now%melt = now%melted_snow + now%melted_ice
             elsewhere
-                now%melt = melt_snow
+                now%melt = now%melted_snow
             end where
         end if
 
@@ -237,14 +254,14 @@ contains
             ! potential refeezing snow
             refrozen_snow = dmax1(now%refr-refrozen_rain,0.0_dp)
             ! actual refreezing snow
-            refrozen_snow = dmin1(refrozen_snow,melt_snow)
+            refrozen_snow = dmin1(refrozen_snow,now%melted_snow)
             ! actual refreezing
             refrozen_rain =  f_rz*refrozen_rain
             refrozen_snow =  f_rz*refrozen_snow
             now%refr = refrozen_rain + refrozen_snow
         end if 
 
-        ! 3) runoff
+        ! 3) potential runoff
         now%runoff = 0.0_dp
         now%runoff = now%melt + now%rf - refrozen_rain
 
@@ -254,35 +271,26 @@ contains
         end if
         
         ! 5) surface mass balance
-        now%smb_snow = now%sf - now%subl/rhow - melt_snow
+        now%smb_snow = now%sf - now%subl/rhow - now%melted_snow
 
         where (now%mask == 0)
             now%hsnow = 0.0_dp
         else where
             ! update snow height
-            now%hsnow = dmax1(0.0_dp, now%hsnow + now%smb_snow*par%tstic)
+            now%hsnow = dmax1(0.0_dp, now%hsnow + now%smb_snow*par%tsticsub)
         end where
         
         ! Relax snow height to maximum (eg, 5 m)
-        snow_to_ice   = dmax1(0.d0,now%hsnow-hsmax) 
+        snow_to_ice   = dmax1(0.d0,now%hsnow-hsmax)
         now%hsnow   = now%hsnow - snow_to_ice
-        now%smb_ice = snow_to_ice/par%tstic - melt_ice + now%refr   ! Use to force ice sheet model
-        now%hice    = now%hice + now%smb_ice*par%tstic ! update new ice budget: remove or add ice
+        now%smb_ice = snow_to_ice/par%tsticsub - now%melted_ice + now%refr   ! Use to force ice sheet model
+        now%hice    = now%hice + now%smb_ice*par%tsticsub ! update new ice budget: remove or add ice
 
         if (.not. bnd%smb) then
             where (now%mask == 2)
-                now%smb = now%smb_snow + now%smb_ice - snow_to_ice/par%tstic
+                now%smb = now%smb_snow + now%smb_ice - snow_to_ice/par%tsticsub
             elsewhere
-                now%smb = now%smb_snow + dmax1(0.0_dp,now%smb_ice - snow_to_ice/par%tstic)
-            end where
-        end if
-
-        ! reset temperature according to melt/refreezing
-        if (.not. bnd%tsurf) then
-            where (now%mask == 2)         ! ice
-                now%tsurf = tsurf_new - (melt_snow + melt_ice - now%refr)*par%tstic*rhow*clm/par%ceff
-            elsewhere                               ! land and sea
-                now%tsurf = tsurf_new - (melt_snow - now%refr)*par%tstic*rhow*clm/par%ceff
+                now%smb = now%smb_snow + dmax1(0.0_dp,now%smb_ice - snow_to_ice/par%tsticsub)
             end where
         end if
 
@@ -296,7 +304,7 @@ contains
                 call albedo_denby(now%alb_snow,now%melt,par%alb_smax,par%alb_smin,par%mcrit)
             end if
             if (trim(par%alb_scheme) .eq. "isba") then
-                call albedo_isba(now%alb_snow,now%sf,now%melt,par%tstic,par%tstic,par%tau_a,par%tau_f,&
+                call albedo_isba(now%alb_snow,now%sf,now%melt,par%tsticsub,par%tstic,par%tau_a,par%tau_f,&
                                  par%w_crit,par%mcrit,par%alb_smin,par%alb_smax)
             end if
             where (now%mask == 2)
@@ -310,18 +318,24 @@ contains
             end where
             
             if (trim(par%alb_scheme) .eq. "alex") then
-                now%alb_snow = par%alb_smin + (par%alb_smax - par%alb_smin)*(0.5_dp*tanh(par%afac*(t2m_new-par%tmid))+0.5_dp) 
+                now%alb_snow = par%alb_smin + (par%alb_smax - par%alb_smin)*(0.5_dp*tanh(par%afac*(now%t2m-par%tmid))+0.5_dp) 
                 now%alb      = now%alb_snow 
             end if
 
         end if
         
-        now%t2m = t2m_new 
+        !now%t2m = t2m_new 
+        ! add remainder of melted snow/ice and refreezing to surface temperature
+        !where (now%mask == 2)         ! ice
+        !    now%tsurf = now%tsurf  - (now%melted_snow + now%melted_ice - now%refr)*par%tsticsub*rhow*clm/par%ceff
+        !elsewhere                     ! land and sea
+        !    now%tsurf = now%tsurf - (now%melted_snow - now%refr)*par%tsticsub*rhow*clm/par%ceff
+        !end where
 
         ! write prognostic and diagnostic output
         now%subl = now%subl/rhow
 
-    end subroutine surface_mass_balance
+    end subroutine
 
     elemental subroutine sensible_heat_flux(ts,ta,wind,rhoa,csh,enh,cap,shf)
         double precision, intent(in) :: ts, ta, wind, rhoa
@@ -349,6 +363,9 @@ contains
         subl = 0.0_dp
         evap = 0.0_dp
         lhf  = 0.0_dp
+        esat_sur = 0.0_dp
+        shum_sat = 0.0_dp
+        coeff = 0.0_dp
         if (mask == 1) then
             coeff = enh*clh
         else
@@ -374,7 +391,7 @@ contains
     elemental subroutine longwave_upward(ts,sigma,lwout)
         double precision, intent(in) :: ts, sigma
         double precision, intent(out) :: lwout
-        lwout = sigma*ts**4.0_dp
+        lwout = sigma*ts*ts*ts*ts
     end subroutine
 
     elemental subroutine diurnal_cycle(amp,tmean,above,below)
@@ -628,6 +645,8 @@ contains
         allocate(now%alb(npts))
         allocate(now%alb_snow(npts))
         allocate(now%melt(npts))
+        allocate(now%melted_snow(npts))
+        allocate(now%melted_ice(npts))
         allocate(now%refr(npts))
         allocate(now%smb(npts))
         allocate(now%smb_snow(npts))
@@ -667,6 +686,8 @@ contains
         deallocate(now%alb)
         deallocate(now%alb_snow)
         deallocate(now%melt)
+        deallocate(now%melted_ice)
+        deallocate(now%melted_snow)
         deallocate(now%refr)
         deallocate(now%smb)
         deallocate(now%smb_snow)
@@ -778,6 +799,9 @@ contains
         par%shf_enh    = shf_enh
         par%lhf_enh    = lhf_enh
 
+        ! initialize sub-daily time step tsticsub
+        par%tsticsub = par%tstic / dble(par%n_ksub)
+
         return
 
     end subroutine surface_physics_par_load
@@ -866,6 +890,7 @@ contains
         write(*,'(a,g13.6)') 'tmin       ', par%tmin
         write(*,'(a,g13.6)') 'tmax       ', par%tmax
         write(*,'(a,g13.6)') 'tstic      ', par%tstic
+        write(*,'(a,g13.6)') 'tsticsub   ', par%tsticsub
         write(*,'(a,g13.6)') 'clh        ', par%clh
         write(*,'(a,g13.6)') 'tau_a      ', par%tau_a
         write(*,'(a,g13.6)') 'tau_f      ', par%tau_f
