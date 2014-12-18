@@ -143,7 +143,7 @@ program run_particles
                 if (surface%bnd%smb)   surface%now%smb   = vali%smb(:,day)
 
                 ! calculate prognostic and diagnsotic variables
-                call surface_mass_balance(surface%now,surface%par,surface%bnd,day,year)
+                call surface_energy_and_mass_balance(surface%now,surface%par,surface%bnd,day,year)
 
                 if (k==nloop) then
                     state%stt(:,day)   = surface%now%tsurf(:)

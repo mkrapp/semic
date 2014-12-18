@@ -109,7 +109,7 @@ program example
 
             ! calculate prognostic and diagnsotic variables
             call cpu_time(start)
-            call surface_mass_balance(surface%now,surface%par,surface%bnd,day,year)
+            call surface_energy_and_mass_balance(surface%now,surface%par,surface%bnd,day,year)
             call cpu_time(finish)
             total_time = total_time + (finish - start)
 
