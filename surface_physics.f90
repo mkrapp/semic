@@ -76,6 +76,7 @@ module surface_physics
         double precision, allocatable, dimension(:) :: smb_snow !< surface mass balance of snow [m/s]
         double precision, allocatable, dimension(:) :: smb_ice  !< surface mass balance of ice [m/s]
         double precision, allocatable, dimension(:) :: runoff   !< potential surface runoff [m/s]
+        double precision, allocatable, dimension(:) :: qmr      !< heat flux from melting/refreezing [W/m2]
         ! Forcing variables
         double precision, allocatable, dimension(:) :: sf       !< snow fall [m/s]
         double precision, allocatable, dimension(:) :: rf       !< rain fall [m/s]
@@ -161,19 +162,26 @@ contains
         call longwave_upward(now%tsurf,sigm,now%lwu)
 
         ! residual energy from melting and refreezing
-        qmr = 0.0_dp
+        now%qmr = 0.0_dp
         where (now%mask == 2)         ! ice
-            qmr = (now%melted_snow + now%melted_ice - now%refr)*rhow*clm
+            now%qmr = (now%melted_snow + now%melted_ice - now%refr)*rhow*clm
         elsewhere                               ! land and sea
-            qmr = (now%melted_snow - now%refr)*rhow*clm
+            now%qmr = (now%melted_snow - now%refr)*rhow*clm
         end where
 
         ! surface energy balance of incoming and outgoing surface fluxes (W/m^2)
-        qsb  = (1.0_dp-now%alb)*now%swd + now%lwd - now%lwu - now%shf - now%lhf - qmr
+        qsb  = (1.0_dp-now%alb)*now%swd + now%lwd - now%lwu - now%shf - now%lhf - now%qmr
 
         ! update surface temperature according to surface energy balance
         if (.not. bnd%tsurf) then
             now%tsurf = now%tsurf + qsb*par%tsticsub/par%ceff 
+            ! store residual energy for subfreezing tsurf over ice in qmr for later use in mass balance
+            where (now%mask == 2 .and. now%tsurf > t0)
+                now%qmr = (now%tsurf-t0)*par%ceff/par%tstic
+                now%tsurf = t0
+            else where
+                now%qmr = 0.0_dp
+            end where
         end if
         now%t2m   = now%t2m + (now%shf+now%lhf)*par%tsticsub/par%ceff  
 
@@ -215,23 +223,20 @@ contains
 
         where (now%mask >= 1)
             ! melt energy where temperature exceeds freezing (difference to heat at freezing)
-            qmelt = dmax1(0.0_dp,(above)*par%ceff/par%tsticsub)
+            qmelt = dmax1(0.0_dp,(above)*par%ceff/par%tstic+now%qmr)
             ! watch the sign
-            qcold = dmax1(0.0_dp,abs(below)*par%ceff/par%tsticsub)
+            qcold = dmax1(0.0_dp,abs(below)*par%ceff/par%tstic)
         else where
             qmelt = 0.0_dp
             qcold = 0.0_dp
         end where
-
-        ! reset surface temperature if necessary (update of temperature at the end)
-        !where(tsurf_new > t0) tsurf_new = t0
 
         ! 1) ablation: melt (m/s); potential melt resulting from available melt energy
         if (.not. bnd%melt) then
             ! potential melt
             now%melt = qmelt/(rhow*clm)
             ! separate potential melt into actual melt of snow and ice
-            now%melted_snow = dmin1(now%melt,now%hsnow/par%tsticsub)
+            now%melted_snow = dmin1(now%melt,now%hsnow/par%tstic)
             now%melted_ice  = now%melt-now%melted_snow
 
             ! actual melt is sum of melted snow and ice (melted snow over land)
@@ -277,20 +282,20 @@ contains
             now%hsnow = 0.0_dp
         else where
             ! update snow height
-            now%hsnow = dmax1(0.0_dp, now%hsnow + now%smb_snow*par%tsticsub)
+            now%hsnow = dmax1(0.0_dp, now%hsnow + now%smb_snow*par%tstic)
         end where
         
         ! Relax snow height to maximum (eg, 5 m)
         snow_to_ice   = dmax1(0.d0,now%hsnow-hsmax)
         now%hsnow   = now%hsnow - snow_to_ice
-        now%smb_ice = snow_to_ice/par%tsticsub - now%melted_ice + now%refr   ! Use to force ice sheet model
-        now%hice    = now%hice + now%smb_ice*par%tsticsub ! update new ice budget: remove or add ice
+        now%smb_ice = snow_to_ice/par%tstic - now%melted_ice + now%refr   ! Use to force ice sheet model
+        now%hice    = now%hice + now%smb_ice*par%tstic ! update new ice budget: remove or add ice
 
         if (.not. bnd%smb) then
             where (now%mask == 2)
-                now%smb = now%smb_snow + now%smb_ice - snow_to_ice/par%tsticsub
+                now%smb = now%smb_snow + now%smb_ice - snow_to_ice/par%tstic
             elsewhere
-                now%smb = now%smb_snow + dmax1(0.0_dp,now%smb_ice - snow_to_ice/par%tsticsub)
+                now%smb = now%smb_snow + dmax1(0.0_dp,now%smb_ice - snow_to_ice/par%tstic)
             end where
         end if
 
@@ -304,7 +309,7 @@ contains
                 call albedo_denby(now%alb_snow,now%melt,par%alb_smax,par%alb_smin,par%mcrit)
             end if
             if (trim(par%alb_scheme) .eq. "isba") then
-                call albedo_isba(now%alb_snow,now%sf,now%melt,par%tsticsub,par%tstic,par%tau_a,par%tau_f,&
+                call albedo_isba(now%alb_snow,now%sf,now%melt,par%tstic,par%tstic,par%tau_a,par%tau_f,&
                                  par%w_crit,par%mcrit,par%alb_smin,par%alb_smax)
             end if
             where (now%mask == 2)
@@ -324,14 +329,6 @@ contains
 
         end if
         
-        !now%t2m = t2m_new 
-        ! add remainder of melted snow/ice and refreezing to surface temperature
-        !where (now%mask == 2)         ! ice
-        !    now%tsurf = now%tsurf  - (now%melted_snow + now%melted_ice - now%refr)*par%tsticsub*rhow*clm/par%ceff
-        !elsewhere                     ! land and sea
-        !    now%tsurf = now%tsurf - (now%melted_snow - now%refr)*par%tsticsub*rhow*clm/par%ceff
-        !end where
-
         ! write prognostic and diagnostic output
         now%subl = now%subl/rhow
 
@@ -658,6 +655,7 @@ contains
         allocate(now%lwu(npts))
         allocate(now%runoff(npts))
         allocate(now%evap(npts))
+        allocate(now%qmr(npts))
 
         ! forcing fields
         allocate(now%sf(npts))
@@ -699,6 +697,7 @@ contains
         deallocate(now%lwu)
         deallocate(now%runoff)
         deallocate(now%evap)
+        deallocate(now%qmr)
 
         ! forcing fields
         deallocate(now%sf)
