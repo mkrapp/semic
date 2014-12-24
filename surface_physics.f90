@@ -8,11 +8,10 @@ module surface_physics
 
     implicit none 
      
-    ! define precision (machine specific)
-    integer, parameter:: dp=kind(0.d0)
+    integer, parameter:: dp=kind(0.d0) !< define precision (machine specific)
     
     ! constansts used throughout this module
-    double precision, parameter :: pi   = 3.141592653589793238462643_dp
+    double precision, parameter :: pi   = 3.141592653589793238462643_dp !< pi
     double precision, parameter :: t0   = 273.15_dp  !< melting point [K]
     double precision, parameter :: sigm = 5.67e-8_dp !< Stefan-Boltzmann constant [W/(m2 K4)]
     double precision, parameter :: eps  = 0.62197_dp !< ratio of the molar weight of water vapor
@@ -25,9 +24,10 @@ module surface_physics
     double precision, parameter :: hsmax= 5.0_dp     !< maximum snow height [m]
 
 
-    ! Define all parameters needed for the surface module
-    type surface_param_class
-        character (len=256) :: name, boundary(30), alb_scheme
+    type surface_param_class !< Define all parameters needed for the surface module
+        character (len=256) :: name         !< domain name
+        character (len=256) :: boundary(30) !< list of vriables names to be overriden by external fields
+        character (len=256) :: alb_scheme   !< name of albedo scheme: 'slater', 'isba', 'denby', or 'alex'
         integer             :: nx        !< number of grid points
         integer             :: n_ksub    !< number of sub-daily time steps
         double precision    :: ceff      !< surface specific heat capacity of snow/ice [J/Km2]
@@ -54,8 +54,7 @@ module surface_physics
         double precision    :: tmid      !< param for "alex" albedo parametrization [K]
     end type
 
-    type surface_state_class
-        ! Model variables
+    type surface_state_class !< model variables
         double precision, allocatable, dimension(:) :: t2m         !< 2m air temperature [K]
         double precision, allocatable, dimension(:) :: tsurf       !< surface temperature [K]
         double precision, allocatable, dimension(:) :: hsnow       !< snow pack height (water equivalent) [m]
@@ -89,17 +88,31 @@ module surface_physics
         integer,          allocatable, dimension(:) :: mask     !< ocean/land/ice mask [0/1/2]
     end type
 
-    type boundary_opt_class 
-        logical :: t2m, tsurf, hsnow, alb, melt, refr, smb, acc, lhf, shf, subl
+    type boundary_opt_class !< object to hold flags for overriding with external fields
+        logical :: t2m !< flag for 2m air temperature
+        logical :: tsurf !< flag for surface temperature
+        logical :: hsnow !< flag for snow height
+        logical :: alb !< flag for albedo
+        logical :: melt !< flag for melting
+        logical :: refr !< flag for refreezing
+        logical :: smb !< flag for surface mass balance
+        logical :: acc !< flag for accumulation
+        logical :: lhf !< flag for latent heat flux
+        logical :: shf !< flag for senible heat flux
+        logical :: subl !< flag for sublimation/refreezing
     end type
 
-    type surface_physics_class
+    type surface_physics_class !< container which holds all used objects
+                               !! for variables, parameters, boundary switches, etc.
 
-        type(surface_param_class) :: par        ! physical parameters
-        type(boundary_opt_class)  :: bnd, bnd0  ! boundary switches (bnd0 for equilibration)
+        type(surface_param_class) :: par  !< physical parameters
+        type(boundary_opt_class)  :: bnd  !< boundary switches
+        type(boundary_opt_class)  :: bnd0 !< boundary switches for equilibration
 
         ! Daily variables, month and annual averages, forcing variables
-        type(surface_state_class) :: now, mon, ann 
+        type(surface_state_class) :: now !< object to hold daily variables
+        type(surface_state_class) :: mon !< object to hold monthly variables
+        type(surface_state_class) :: ann !< object to hold annual variables
 
     end type
 
@@ -115,12 +128,17 @@ module surface_physics
 
 contains
 
+    !> Major subroutine to be called from outside.
+    !! Updates prognostic and diagnostic variables on a daily basis.
+    !! Loops over surface_physics::energy_balance and calls surface_physics::mass_balance afterwards.
+    !! \todo Add more detailed description if necessary
     subroutine surface_energy_and_mass_balance(now,par,bnd,day,year)
-        type(surface_state_class), intent(in out) :: now
-        type(boundary_opt_class),  intent(in)     :: bnd
-        type(surface_param_class), intent(in)     :: par
+        type(surface_state_class), intent(in out) :: now !< object with daily variables
+        type(boundary_opt_class),  intent(in)     :: bnd !< object with boundary switches
+        type(surface_param_class), intent(in)     :: par !< object with parameter values
 
-        integer, intent(in) :: day, year
+        integer, intent(in) :: day !< current day
+        integer, intent(in) :: year !< current year
         
         integer :: ksub
 
@@ -131,24 +149,29 @@ contains
         call mass_balance(now,par,bnd,day,year)
     end subroutine
 
+    !> Calculate surface energy balance.
+    !! \todo Add more detailed description if necessary
     subroutine energy_balance(now,par,bnd,day,year)
-        type(surface_state_class), intent(in out) :: now
-        type(boundary_opt_class),  intent(in)     :: bnd
-        type(surface_param_class), intent(in)     :: par
+        type(surface_state_class), intent(in out) :: now !< object with daily variables
+        type(boundary_opt_class),  intent(in)     :: bnd !< object with boundary switches
+        type(surface_param_class), intent(in)     :: par !< object with parameter values
 
-        integer, intent(in) :: day, year
+        integer, intent(in) :: day !< current day
+        integer, intent(in) :: year !< current year
 
         ! auxillary variables
         double precision, dimension(par%nx) :: qsb, qmr
 
-        ! bulk formulation of sensible heat flux (W/m^2)
+        !> 1. surface_physics::sensible_heat_flux \n
+        !! bulk formulation of sensible heat flux (W/m^2)
         if (.not. bnd%shf) then
             now%shf = 0.0_dp
             call sensible_heat_flux(now%tsurf, now%t2m, now%wind, now%rhoa, par%csh, par%shf_enh, cap, now%shf)
         end if
 
-        ! bulk formulation of latent heat flux (W/m^2), only accounts for sublimation/deposition,
-        ! not for evaporation/condensation (would require estimate of liquid water content)
+        !> 2. surface_physics::latent_heat_flux \n
+        !! bulk formulation of latent heat flux (W/m^2), only accounts for sublimation/deposition,
+        !! not for evaporation/condensation (would require estimate of liquid water content)
         if (.not. bnd%lhf) then  
             now%subl = 0.0_dp
             now%evap = 0.0_dp
@@ -157,11 +180,12 @@ contains
                                   par%clh, par%lhf_enh, eps, cls, clv, now%lhf, now%subl, now%evap)
         end if
 
-        ! outgoing long-wave flux following Stefan-Boltzmann's law (W/m^2)
+        !> 3. surface_physics::longwave_upward \n
+        !! outgoing long-wave flux following Stefan-Boltzmann's law (W/m^2)
         now%lwu = 0.0_dp
         call longwave_upward(now%tsurf,sigm,now%lwu)
 
-        ! residual energy from melting and refreezing
+        !> 4. Get residual energy from melting and refreezing.
         now%qmr = 0.0_dp
         where (now%mask == 2)         ! ice
             now%qmr = (now%melted_snow + now%melted_ice - now%refr)*rhow*clm
@@ -169,10 +193,10 @@ contains
             now%qmr = (now%melted_snow - now%refr)*rhow*clm
         end where
 
-        ! surface energy balance of incoming and outgoing surface fluxes (W/m^2)
+        !> 5. Calculate surface energy balance of incoming and outgoing surface fluxes (W/m^2)
         qsb  = (1.0_dp-now%alb)*now%swd + now%lwd - now%lwu - now%shf - now%lhf - now%qmr
 
-        ! update surface temperature according to surface energy balance
+        !> 6. Update surface temperature according to surface energy balance
         if (.not. bnd%tsurf) then
             now%tsurf = now%tsurf + qsb*par%tsticsub/par%ceff 
             ! store residual energy for subfreezing tsurf over ice in qmr for later use in mass balance
@@ -183,47 +207,46 @@ contains
                 now%qmr = 0.0_dp
             end where
         end if
+        !> 7. Update 2m air temperature
         now%t2m   = now%t2m + (now%shf+now%lhf)*par%tsticsub/par%ceff  
 
     end subroutine
 
-    !! **Subroutine**  : surface_mass_balance \n
-    !! **Author**  : Mario Krapp \n 
-    !! **Purpose** : Main routine to calculate
-    !!                * surface mass balance (m/s)
-    !!                * surface (snow/ice) albedo
-    !!                * snow height (m)
-    !!               based on surface energy and mass balance.
-    !!               Forced by atmospheric fields of
-    !!                * air temperature
-    !!                * surface wind speed
-    !!                * air humidity
-    !!                * snow fall
-    !!                * rain fall
-    !!                * surface pressure
-    !!                * air density
-    !!                * longwave radiation
-    !!                * shortwave radiation
-    !!
-    !! ####################################################################
+    !>  Main routine to calculate
+    !!  1. surface mass balance (m/s)
+    !!  2. surface (snow/ice) albedo
+    !!  3. snow height (m)
+    !! based on surface energy and mass balance.
+    !! Forced by atmospheric fields of
+    !!  * air temperature
+    !!  * surface wind speed
+    !!  * air humidity
+    !!  * snow fall
+    !!  * rain fall
+    !!  * surface pressure
+    !!  * air density
+    !!  * longwave radiation
+    !!  * shortwave radiation
     subroutine mass_balance(now,par,bnd,day,year)
 
-        type(surface_state_class), intent(in out) :: now
-        type(boundary_opt_class),  intent(in)     :: bnd
-        type(surface_param_class), intent(in)     :: par
+        type(surface_state_class), intent(in out) :: now !< object with daily variables
+        type(boundary_opt_class),  intent(in)     :: bnd !< object with boundary switches
+        type(surface_param_class), intent(in)     :: par !< object with parameter values
 
-        integer, intent(in) :: day, year
+        integer, intent(in) :: day !< current day
+        integer, intent(in) :: year !< current year
         
         ! auxillary variables
         double precision, dimension(par%nx) :: qmelt, qcold, &
             below, above, f_rz, f_alb, refrozen_rain, refrozen_snow, snow_to_ice 
 
-        ! Calculate above-/below-freezing temperatures for a given mean temperature
+        !> 1. Calculate above-/below-freezing temperatures for a given mean temperature
         call diurnal_cycle(par%amp,now%tsurf-t0,above,below)
 
         where (now%mask >= 1)
-            ! melt energy where temperature exceeds freezing (difference to heat at freezing)
+            !> 2. Calculate Melt energy where temperature exceeds freezing (difference to heat at freezing)
             qmelt = dmax1(0.0_dp,(above)*par%ceff/par%tstic+now%qmr)
+            !> 3. Calcukate "cold" content
             ! watch the sign
             qcold = dmax1(0.0_dp,abs(below)*par%ceff/par%tstic)
         else where
@@ -231,7 +254,7 @@ contains
             qcold = 0.0_dp
         end where
 
-        ! 1) ablation: melt (m/s); potential melt resulting from available melt energy
+        !> 4. Ablation: melt (m/s); potential melt resulting from available melt energy
         if (.not. bnd%melt) then
             ! potential melt
             now%melt = qmelt/(rhow*clm)
@@ -248,8 +271,7 @@ contains
         end if
 
 
-        ! 2) refreezing
-        ! refreezing as fraction of melt (increases with snow height)
+        !> 5. Refreezing as fraction of melt (increases with snow height)
         f_rz = now%hsnow/(now%hsnow+par%rcrit)
         if (.not. bnd%refr) then
             !f_rz = (1._dp-dexp(-now%hsnow))
@@ -266,31 +288,32 @@ contains
             now%refr = refrozen_rain + refrozen_snow
         end if 
 
-        ! 3) potential runoff
+        !> 6. Runoff
         now%runoff = 0.0_dp
         now%runoff = now%melt + now%rf - refrozen_rain
 
-        ! 4) accumulation: sum of all incoming solid water (just diagnostic, here)
+        !> 7. Accumulation: sum of all incoming solid water (just diagnostic, here)
         if (.not. bnd%acc) then
             now%acc = now%sf - now%subl/rhow + now%refr
         end if
         
-        ! 5) surface mass balance
+        !> 8. Surface mass balance of snow
         now%smb_snow = now%sf - now%subl/rhow - now%melted_snow
 
         where (now%mask == 0)
             now%hsnow = 0.0_dp
         else where
-            ! update snow height
+            !> 9. Update snow height
             now%hsnow = dmax1(0.0_dp, now%hsnow + now%smb_snow*par%tstic)
         end where
         
-        ! Relax snow height to maximum (eg, 5 m)
+        !> 10. Relax snow height to maximum (eg, 5 m)
         snow_to_ice   = dmax1(0.d0,now%hsnow-hsmax)
         now%hsnow   = now%hsnow - snow_to_ice
         now%smb_ice = snow_to_ice/par%tstic - now%melted_ice + now%refr   ! Use to force ice sheet model
         now%hice    = now%hice + now%smb_ice*par%tstic ! update new ice budget: remove or add ice
 
+        !> 11. Total surface mass balance
         if (.not. bnd%smb) then
             where (now%mask == 2)
                 now%smb = now%smb_snow + now%smb_ice - snow_to_ice/par%tstic
@@ -299,7 +322,7 @@ contains
             end where
         end if
 
-        ! Update snow albedo
+        !> 12. Update snow albedo
         f_alb = now%hsnow/(now%hsnow+par%hcrit)
         if (.not. bnd%alb) then 
             if (trim(par%alb_scheme) .eq. "slater") then
@@ -334,10 +357,17 @@ contains
 
     end subroutine
 
+    !> Bulk formulation of sensible heat flux
     elemental subroutine sensible_heat_flux(ts,ta,wind,rhoa,csh,enh,cap,shf)
-        double precision, intent(in) :: ts, ta, wind, rhoa
-        double precision, intent(in) :: csh, cap, enh
-        double precision, intent(out) :: shf
+        double precision, intent(in) :: ts !< surface temperature
+        double precision, intent(in) :: ta !< air temperature
+        double precision, intent(in) :: wind !< wind speed
+        double precision, intent(in) :: rhoa !< air density
+        double precision, intent(in) :: csh !< sensible heat exchange coefficient
+        double precision, intent(in) :: cap !< air specific heat capacity
+        double precision, intent(in) :: enh !< enhancement factor to increase heat flux 
+                                            !! for positive fluxes (during summer)
+        double precision, intent(out) :: shf !< sensible heat flux
         double precision :: coeff
 
         ! enhancement over land
@@ -350,11 +380,24 @@ contains
         shf = coeff*cap*rhoa*wind*(ts-ta)
     end subroutine
 
+    !> Bulk formulation of latent heat flux
     elemental subroutine latent_heat_flux(ts, wind, shum, sp, rhoatm, mask, clh, enh, eps, cls, clv, lhf, subl, evap)
-        double precision, intent(in)  :: ts, shum, sp, rhoatm, wind
-        double precision, intent(in)  :: clh, eps, cls, clv, enh
-        integer, intent(in)  :: mask
-        double precision, intent(out) :: lhf, subl, evap
+        double precision, intent(in) :: ts !< surface temperature
+        double precision, intent(in) :: shum !< specific humidity
+        double precision, intent(in) :: sp !< surface pressure
+        double precision, intent(in) :: rhoatm !< air density
+        double precision, intent(in) :: wind !< wind speed
+        double precision, intent(in) :: clh !< latent heat exchange coefficient
+        double precision, intent(in) :: eps !< ratio of the molar weight of water vapor
+                                            !! to the molar weight of dry air
+        double precision, intent(in) :: cls !< latent heat of sublimation
+        double precision, intent(in) :: clv !< latent heat of vaporisation
+        double precision, intent(in) :: enh !< enhancement factor to increase
+                                            !! latent heat flux over land 
+        integer, intent(in)  :: mask        !< mask
+        double precision, intent(out) :: lhf !< latent heat flux
+        double precision, intent(out) :: evap !< evaporation
+        double precision, intent(out) :: subl !< sublimation
         double precision :: esat_sur, shum_sat, coeff
 
         subl = 0.0_dp
@@ -385,21 +428,22 @@ contains
         end if
     end subroutine
 
+    !> Upwelling longwave radiation according to Stefan-Boltzmann law
     elemental subroutine longwave_upward(ts,sigma,lwout)
         double precision, intent(in) :: ts, sigma
         double precision, intent(out) :: lwout
         lwout = sigma*ts*ts*ts*ts
     end subroutine
 
+    !> Calculate analytical expression for above-/below-freezing
+    !! temperatures for a given mean temperature and amplitude.
+    !! Diurnal cycle amplitude is currently fixed.
     elemental subroutine diurnal_cycle(amp,tmean,above,below)
-        ! Calculate analytical expression for above-/below-freezing
-        ! temperatures for a given mean temperature.
-        ! Diurnal cycle amplitude can be either fixed (recommended)
-        ! or decrease with surface temperature/pressure (name list)
 
-        double precision, intent(in) :: tmean
-        double precision, intent(in) :: amp
-        double precision, intent(out) :: above, below
+        double precision, intent(in)  :: tmean !< mean daily temperature
+        double precision, intent(in)  :: amp   !< diurnal cycle amplitude
+        double precision, intent(out) :: above !< mean above-freezing temperature
+        double precision, intent(out) :: below !< mean below-freezing temperature
         double precision :: tmp1, tmp2
 
         tmp1 = 0.0_dp
@@ -424,6 +468,7 @@ contains
         end if
     end subroutine diurnal_cycle
 
+    !> calculate snow albedo according to 
     elemental subroutine albedo_isba(alb,sf,melt,tstic,tau,tau_a,tau_f,w_crn,mcrit,alb_smin,alb_smax)
 
         double precision, intent(in out) :: alb
@@ -446,16 +491,20 @@ contains
         alb = dmin1(alb_smax,dmax1(alb,alb_smin))
     end subroutine albedo_isba
 
-
+    !> Snow/ice albedo formulation based on Slater et. al., 1998
+    ! Added and exponential dependence on snow height: if snow
+    ! becomes thicker it is less perceptive to temperature induced
+    ! albedo changes.
     elemental subroutine albedo_slater(alb, tsurf, tmin, tmax, alb_smax, alb_smin)
-        ! Snow/ice albedo formulation based on Slater et. al., 1998
-        ! Added and exponential dependence on snow height: if snow
-        ! becomes thicker it is less perceptive to temperature induced
-        ! albedo changes.
 
-        double precision, intent(out)    :: alb
-        double precision, intent(in)     :: tsurf
-        double precision, intent(in)     :: tmin, tmax, alb_smax, alb_smin
+        double precision, intent(out) :: alb      !< snow albedo
+        double precision, intent(in)  :: tsurf    !< surface temperature
+        double precision, intent(in)  :: tmin     !< minimum temperature for which 
+                                                  !! albedo start to decline
+        double precision, intent(in)  :: tmax     !< maximum temperature above which snow
+                                                  !! albedo equals the minimum albedo
+        double precision, intent(in)  :: alb_smax !< maximum snow albedo
+        double precision, intent(in)  :: alb_smin !< minimum snow albedo
         double precision                 :: tm
         double precision                 :: f
 
@@ -468,107 +517,50 @@ contains
         if (tsurf > t0) then
             tm = 1.0_dp
         end if
-        ! In contrast to the formulation in their paper, I summed up alpha_nir
-        ! and alpha_nir immediately (fewer parameters: alb_smax and alb_smin).
+        !> \n
+        !! In contrast to the formulation in their paper, I summed up alpha_nir
+        !! and alpha_nir immediately (fewer parameters: alb_smax and alb_smin).
         alb = alb_smax - (alb_smax - alb_smin)*tm**3.0_dp
-        ! snow cover fraction and gridpoint-averaged albedo
-        !sfrac = tanh(hsnow/hcrit)
-        !alb = albr*(1.-sfrac) + alb*sfrac
-        !alb = albr + hsnow/(hsnow + hcrit)*(alb - albr)
-        ! write albedo to domain object 'now'
     end subroutine albedo_slater
 
+    !> Another snow albedo parametrization
+    !! \todo add reference
     elemental subroutine albedo_denby(alb,melt,alb_smax, alb_smin, mcrit)
-        double precision, intent(out) :: alb
-        double precision, intent(in) :: melt
-        double precision, intent(in) :: alb_smax, alb_smin, mcrit
+        double precision, intent(out) :: alb !< snow albedo
+        double precision, intent(in)  :: melt !< actual melt rate
+        double precision, intent(in)  :: alb_smax !< minimum snow albedo
+        double precision, intent(in)  :: alb_smin !< maximum snow albedo
+        double precision, intent(in)  :: mcrit !< critical melt rate
         alb = alb_smin + (alb_smax - alb_smin)*dexp(-melt/mcrit)
     end subroutine albedo_denby
 
-    ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    ! Subroutine : a l b e d o _ r e m b o
-    ! Author     : Alex Robinson, modified by M. Krapp
-    ! Purpose    : Determine the current surface
-    ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    elemental subroutine albedo_rembo(as, hsnow, albr,alb_smin,alb_smax, melt_in)
-      
-      implicit none
-      
-      double precision, intent(in out)       :: as
-      double precision, intent(in)           :: hsnow
-      double precision, intent(in)           :: albr, alb_smax, alb_smin
-      double precision, intent(in), optional :: melt_in
-      double precision :: as_snow, as_ground, depth, as_snow_planet
-      double precision :: hsnow_critical, melt
-      
-      ! Determine the critical snow height based on number of PDDs,
-      ! which correspond to vegetation growth
-      ! 0-100 PDDs    = desert, 10mm
-      ! 100-1000 PDDs = tundra (grass), linearly increasing between 10mm => 100mm
-      hsnow_critical = 0.1_dp ! 10 mm
-      
-      ! Determine the scaled snowdepth
-      depth = hsnow / hsnow_critical
-      
-      ! Determine the amount of melt to affect abledo calculation.
-      ! Default is high melt everywhere, so that jump in albedo is avoided
-      ! at onset of melt season.
-      ! After calculating actual melt, this is included as an argument and
-      ! albedo is recalculated.
-      melt = 1.e-3_dp + 1.e-3_dp
-      if ( present(melt_in) ) melt = melt_in
-      
-      ! Figure out what the surface albedo would be with no snow, 
-      ! based on the type of ground underneath ( ice or land )
-      as_ground = albr
-      
-      ! Determine current snow albedo: if melt gt eg, 1mm/day, then change albedo to melting snow!
-      as_snow = alb_smax
-      if (melt .gt. 1.e-3_dp) as_snow = alb_smin
-      
-      ! Determine snow albedo for use with REMBO (to get planetary albedo)
-      ! Where PDDs > 1d3, forest snow
-      as_snow_planet = as_snow
-
-      ! First, calculate surface albedo to use for REMBO, 
-      ! which is not necessarily identical to snow albedo
-      ! minimum albedo is that of bare ground
-      as = min(as_ground + depth*(as_snow_planet-as_ground), as_snow_planet)
-      
-      ! Get current surface albedo to be used for ITM melt scheme
-      ! It will either be the maximum albedo (that of dry snow: as_snow)
-      ! or the wet snow albedo plus a fraction depending on height of snow
-      ! minimum albedo now should be that of wet snow minimum
-      as = min(albr + depth*(as_snow-albr), as_snow)
-      
-      return
-      
-    end subroutine albedo_rembo
-
+    !> Saturation water vapor pressure over water
     elemental function ew_sat(t) result(fsat)
 
-        double precision, intent(in) :: t
-        double precision :: fsat
+        double precision, intent(in) :: t !< temperature
+        double precision :: fsat !< saturation water vapor
         fsat = 611.2_dp*dexp(17.62_dp*(t-t0)/(243.12_dp+t-t0))
     end function ew_sat
 
+    !> Saturation water vapor pressure over ice
     elemental function ei_sat(t) result(fsat)
 
-        double precision, intent(in) :: t
-        double precision :: fsat
+        double precision, intent(in) :: t !< temperature
+        double precision :: fsat !< saturation water vapor
         fsat = 611.2_dp*dexp(22.46_dp*(t-t0)/(272.62_dp+t-t0))
     end function ei_sat
 
 
     !! Data management subroutines 
-
+    !> Routine to calculate field averages for all 2D variables (surface_physics::field_average)
     subroutine surface_physics_average(ave,now,step,nt)
         implicit none 
 
-        type(surface_state_class), intent(INOUT) :: ave
-        type(surface_state_class), intent(IN)    :: now 
-        character(len=*)  :: step
-        double precision, optional :: nt 
+        type(surface_state_class), intent(in out) :: ave !< state object
+        type(surface_state_class), intent(in)    :: now  !< state object
+        character(len=*)  :: step                        !< current step:
+                                                         !! "init", "step", or "end"
+        double precision, optional, intent(in) :: nt     !< number of total steps
         
         call field_average(ave%t2m,     now%t2m,  step,nt)
         call field_average(ave%tsurf,   now%tsurf,step,nt)
@@ -595,14 +587,14 @@ contains
 
     end subroutine surface_physics_average
 
+    !> Generic routine to average a field through time 
     subroutine field_average(ave,now,step,nt)
-        ! Generic routine to average a field through time 
 
         implicit none 
-        double precision, intent(INOUT) :: ave(:)
-        double precision, intent(IN)    :: now(:) 
-        character(len=*)  :: step
-        double precision, optional :: nt 
+        double precision, intent(in out) :: ave(:)   !< field to hold averages
+        double precision, intent(in)    :: now(:)    !< current processed field
+        character(len=*)  :: step                    !< current step: "init", "step", or "end"
+        double precision, optional, intent(in) :: nt !< number of total steps
 
         if (trim(step) .eq. "init") then
             ! Initialize field to zero  
@@ -628,6 +620,7 @@ contains
  
 
 
+    !> Allocation of all fields of the surface_physics::state_class
     subroutine surface_alloc(now,npts)
 
         implicit none 
@@ -671,11 +664,12 @@ contains
         return 
     end subroutine surface_alloc 
 
+    !> De-allocate all members of the surface object (surface_state_class)
     subroutine surface_dealloc(now)
 
         implicit none 
 
-        type(surface_state_class) :: now
+        type(surface_state_class), intent(in out) :: now !< domain object
 
         deallocate(now%t2m)
         deallocate(now%tsurf)
@@ -714,6 +708,7 @@ contains
 
     end subroutine surface_dealloc 
 
+    !> Load parameters into parameter object surface_param_class
     subroutine surface_physics_par_load(par,filename)
 
         type(surface_param_class) :: par
@@ -805,12 +800,15 @@ contains
 
     end subroutine surface_physics_par_load
 
+    !> Define if external field override otherwise internally
+    !! calculated variables.
     subroutine surface_boundary_define(bnd,boundary)
 
         implicit none 
 
-        type(boundary_opt_class) :: bnd 
-        character(len=256) :: boundary(:)
+        type(boundary_opt_class), intent(in out) :: bnd !< boundary switches
+        character(len=256), intent(in) :: boundary(:)   !< list of variable names for 
+                                                        !! which overriding is requested.
         integer :: q 
 
         ! First set all boundary fields to false
@@ -863,9 +861,10 @@ contains
     end subroutine surface_boundary_define
 
 
+    !> Print parameters from namelist
     subroutine print_param(par)
         
-        type(surface_param_class) :: par
+        type(surface_param_class), intent(in) :: par !< parameter object
         integer :: q
 
         do q = 1,size(par%boundary)
@@ -901,8 +900,9 @@ contains
     end subroutine
     
     
+    !> Print boundary switches of variables from namelist
     subroutine print_boundary_opt(bnd)
-        type(boundary_opt_class) :: bnd
+        type(boundary_opt_class), intent(in) :: bnd !< boundary switches
         write(*,'(a,l1)') 'tsurf   ', bnd%tsurf
         write(*,'(a,l1)') 'hsnow   ', bnd%hsnow
         write(*,'(a,l1)') 'alb     ', bnd%alb
