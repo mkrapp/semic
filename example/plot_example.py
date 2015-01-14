@@ -55,8 +55,13 @@ for y in range(ndata-1):
     ymax = np.max(minmax_list)
     ax[y,-1].plot(np.linspace(ymin,ymax),np.linspace(ymin,ymax),'k-')
     corcoef = pearsonr(fac*data[:,y],fac*vali[:,y])[0]
+    x1 = fac*data[:,y]
+    x1_avg = np.average(fac*data[:,y])
+    x2 = fac*vali[:,y]
+    x2_avg = np.average(fac*vali[:,y])
+    crmse = np.sqrt(np.sum(((x1 - x1_avg)-(x2 - x2_avg))**2)/len(vali[:,y]))
     ax[y,-1].plot(fac*data[:,y],fac*vali[:,y],ls='',marker='o',ms=3,color='k',alpha=0.2,mew=0.1)
-    ax[y,-1].text(0.05,0.80,'%4.2f'%corcoef,transform=ax[y,-1].transAxes,fontsize=10,
+    ax[y,-1].text(0.05,0.80,'%4.2f'%crmse,transform=ax[y,-1].transAxes,fontsize=10,
                   bbox=dict(fc='lightgray'),alpha=0.5)
     ax[y,-1].set_ylim(ymin,ymax)
     ax[y,-1].set_xlim(ymin,ymax)
