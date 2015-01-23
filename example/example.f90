@@ -72,7 +72,7 @@ program example
 
     ! initialise prognostic variables
     surface%now%mask(:) = loi_mask(:nx)
-    surface%now%hsnow(:) = 1.0
+    surface%now%hsnow(:) = 5.0
     surface%now%hice(:)  = 0.0
     surface%now%alb(:) = 0.8
     surface%now%tsurf(:) = 260.
