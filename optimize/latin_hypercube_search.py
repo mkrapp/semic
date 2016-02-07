@@ -17,15 +17,37 @@ def objective_function(vector):
    return sum([x ** 2.0 for x in vector])
 
 def latin_hypercube(minmax,max_iter):
-    segmentSize = float(len(minmax)) / float(max_iter)
-    pos = []
+    k = len(minmax)
+    pranges=[]
+    for i in range(k):
+    tmp=[]
+    low=float(minmax[i][0])
+    high=float(minmax[i][1])
+    delta=(high-low)/float(max_iter)
     for j in range(max_iter):
-        segmentMin = j * segmentSize
-        point = segmentMin + (random.random() * segmentSize)
-        pointValue = [(point * (minmax[i][1] - minmax[i][0])) + minmax[i][0] for i in range(len(minmax))]
-        pos.append(pointValue)
-    return pos
-#    return [minmax[i][0] + ((minmax[i][1] - minmax[i][0]) * random.random()) for i in range(len(minmax))]
+        tmp.append(random.uniform(low+j*delta,low+(j+1)*delta))
+    pranges.append(tmp)
+
+    s=[]
+    for i in range(k):
+        s.append(range(max_iter))
+
+    result=[]
+    for i in range(max_iter):
+        tmp=[]
+        for j in range(k):
+            a = random.sample(s[j],1)[0]
+            tmp.append(a)
+            s[j].remove(a)
+        result.append(tmp)
+
+    sample = []
+    for l in range(0,len(result)):
+        tmp=[]
+        for j in range(0,len(result[l])):
+            tmp.append(pranges[j][result[l][j]])
+        sample.append(tmp)
+    return sample
 
 def search(search_space, max_iter):
     best = None
