@@ -14,5 +14,8 @@ endif
 run_particles.x: ../surface_physics.f90 ../utils.f90 run_particles.f90
 	$(FC) $(FFLAGS) -o $@ $^
 
+python-install:
+	python setup.py install
+
 clean:
 	rm -rf *.mod *.o *.x *.out
