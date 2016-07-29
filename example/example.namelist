@@ -7,7 +7,6 @@
   validation = "data/transect_output.txt",
   output = "example.out",
 /
-['hcrit: 0.098615 ', 'rcrit: 2.78854 ', 'amp: 2.15321 ', 'alb_smax: 0.801691 ', 'alb_smin: 0.697785 ']
 &surface_physics
   boundary = "" "" "",
   tstic  = 86400.,
@@ -17,14 +16,14 @@
   shf_enh = 1.0,
   lhf_enh = 3.5,
   alb_smax = 0.80,
-  alb_smin = 0.70,
+  alb_smin = 0.71,
   albi = 0.45,
   albl = 0.15,
   tmin = 263.15,
   tmax = 273.15,
-  hcrit = 0.099,
-  rcrit = 2.8,
-  amp = 2.2,
+  hcrit = 0.083,
+  rcrit = 0.73,
+  amp = 2.7,
   alb_scheme = "slater",
   tau_a = 0.008,
   tau_f = 0.24,
