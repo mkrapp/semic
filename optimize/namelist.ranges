@@ -1,7 +1,5 @@
-hcrit,0,0.5
-rcrit,0,0.5
-amp,0,7
-albr,0.3,0.65
-albl,0.1,0.5
-alb_smax,0.75,0.98
-alb_smin,0.45,0.75
+hcrit,0,0.2
+rcrit,0,20
+amp,0,10
+alb_smax,0.75,0.90
+alb_smin,0.65,0.75

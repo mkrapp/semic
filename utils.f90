@@ -23,17 +23,21 @@ contains
     function calculate_crmsd(x1,x2,ntime,nx) result(crmsd)
         integer, intent(in) :: ntime, nx
         double precision, intent(in), dimension(nx,ntime) :: x1, x2
-        double precision :: x1_avg, x2_avg, stddev
+        double precision :: x1_avg, x2_avg, x1_std, x2_std, stddev
         double precision :: crmsd(nx)
         integer i
+
 
         do i=1,nx
             x1_avg = sum(x1(i,:))/ntime
             x2_avg = sum(x2(i,:))/ntime
-            crmsd(i) = dsqrt(sum(((x1(i,:) - x1_avg)-(x2(i,:) - x2_avg))**2)/ntime)
-            stddev = dsqrt(sum((x2(i,:) - x2_avg)**2)/ntime)
+            x2_std = dsqrt(sum((x2(i,:) - x2_avg)**2)/ntime)
+            x1_std = dsqrt(sum((x1(i,:) - x1_avg)**2)/ntime)
+            crmsd(i) = dsqrt(sum(((x1(i,:) - x1_avg)-(x2(i,:) - x2_avg))**2)/ntime)/x2_std
+            stddev = dsqrt(crmsd(i)**2 + (x1_std/x2_std - 1.0)**2)
+            !stddev = dsqrt(sum((x2(i,:) - x2_avg)**2)/ntime)
             ! normalized root mean square difference
-            crmsd(i) = crmsd(i)/stddev
+            !crmsd(i) = crmsd(i)/stddev
         end do
     end function
    

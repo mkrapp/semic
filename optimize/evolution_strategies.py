@@ -57,7 +57,8 @@ def search(max_gens, search_space, pop_size, num_children):
     population = init_population(search_space, pop_size)
     for p in population:
         p["fitness"] = objective_function(p["pos"])
-    best = sorted(population, key=lambda k: k["fitness"])[0]
+    population = sorted(population, key=lambda k: k["fitness"])
+    best = population[0]
     for gen in range(max_gens):
         children = [mutate(population[i], search_space) for i in range(num_children)]
         for c in children:

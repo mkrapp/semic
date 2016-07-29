@@ -1,5 +1,5 @@
 &driver
-  nloop = 10,
+  nloop = 20,
   ntime = 365,
   nx    = 7,
   loi_mask(1:3) = 1,1,1,

@@ -77,9 +77,9 @@ program run_particles
     surface%now%mask(:) = loi_mask(1:nx)
     surface%now%hsnow(:) = 1.0
     surface%now%hice(:)  = 0.0
-    surface%now%alb(:) = 0.8
-    surface%now%tsurf(:) = 260.
-    surface%now%alb_snow(:) = 0.8
+    surface%now%alb(:) = vali%alb(:,1)
+    surface%now%tsurf(:) = vali%stt(:,1)
+    surface%now%alb_snow(:) = vali%alb(:,1)
     
     ! allocate state variables
     allocate(state%stt(nx,ntime))
@@ -170,7 +170,7 @@ program run_particles
         cost_lhf = calculate_crmsd(state%lhf,vali%lhf,ntime,nx)
         cost = 0.0
         do n=1,nx
-            cost = cost + cost_swnet(n)**2
+            cost = cost + cost_stt(n)**2 + cost_melt(n)**2 + cost_smb(n)**2 + cost_swnet(n)**2
         end do
         cost = dsqrt(cost)
         write(2,*) cost
