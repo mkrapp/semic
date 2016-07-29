@@ -20,10 +20,10 @@ def latin_hypercube(minmax,max_iter):
     k = len(minmax)
     pranges=[]
     for i in range(k):
-    tmp=[]
-    low=float(minmax[i][0])
-    high=float(minmax[i][1])
-    delta=(high-low)/float(max_iter)
+        tmp=[]
+        low=float(minmax[i][0])
+        high=float(minmax[i][1])
+        delta=(high-low)/float(max_iter)
     for j in range(max_iter):
         tmp.append(random.uniform(low+j*delta,low+(j+1)*delta))
     pranges.append(tmp)

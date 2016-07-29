@@ -1,10 +1,10 @@
 import numpy as np
 import argparse
-import particle_swarm_optimization as pso
-import evolution_strategies as es
-import cultural_algorithm as ca
-import random_search as rs
-import harmony_search as hs
+from optimization_algorithms import particle_swarm_optimization as pso
+from optimization_algorithms import evolution_strategies as es
+from optimization_algorithms import cultural_algorithm as ca
+from optimization_algorithms import random_search as rs
+from optimization_algorithms import harmony_search as hs
 import plot_costs as pc
 from tools import run_particles, get_params, init_search
 
