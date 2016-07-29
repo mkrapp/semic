@@ -244,7 +244,8 @@ contains
 
         where (now%mask >= 1)
             !> 2. Calculate Melt energy where temperature exceeds freezing (difference to heat at freezing)
-            qmelt = dmax1(0.0_dp,(above)*par%ceff/par%tstic)
+            qmelt = dmax1(0.0_dp,(above+now%qmr/par%ceff*par%tstic)*par%ceff/par%tstic)
+            now%qmr = 0.0_dp
             !> 3. Calculate "cold" content
             ! watch the sign
             qcold = dmax1(0.0_dp,abs(below)*par%ceff/par%tstic)
@@ -273,16 +274,18 @@ contains
             end where
         end if
         ! energy needed for melting is added to residual energy
-        now%qmr = now%qmr + now%melt*rhow*clm
+        !now%qmr = now%qmr + now%melt*rhow*clm
 
         !> 5. Refreezing as fraction of melt (increases with snow height)
         if (.not. bnd%refr) then
             !where (now%mask == 2)
             !    f_rz = 1.0_dp
             !else where
-                f_rz = now%hsnow/(now%hsnow+par%rcrit)
+                !f_rz = now%hsnow/(now%hsnow+par%rcrit)
+                !f_rz = (1.0_dp+tanh(now%hsnow-par%rcrit))/2.0_dp
+            !f_rz = dmin1(1.0_dp,now%hsnow/par%rcrit)
             !end where
-            !f_rz = 1.0_dp - exp(-now%hsnow/par%rcrit)
+            f_rz = 1.0_dp - exp(-now%hsnow/par%rcrit)
             ! potential refreezing
             now%refr = qcold/(rhow*clm)
             refrozen_rain = dmin1(now%refr,now%rf)
@@ -294,7 +297,8 @@ contains
             refrozen_rain =  f_rz*refrozen_rain
             refrozen_snow =  f_rz*refrozen_snow
             now%refr = refrozen_rain + refrozen_snow
-            ! energy released during refreezing is subtracted from residual energy
+            ! energy released during refreezing that has not been used
+            ! is subtracted from residual energy
             now%qmr = now%qmr - (1.0_dp - f_rz)*now%refr*rhow*clm
         end if 
 
@@ -335,8 +339,9 @@ contains
         end if
 
         !> 12. Update snow albedo
-        f_alb = now%hsnow/(now%hsnow+par%hcrit)
-        !f_alb = 1.0_dp - exp(-now%hsnow/par%hcrit)
+        !f_alb = now%hsnow/(now%hsnow+par%hcrit)
+        !f_alb = (1.0_dp+tanh(now%hsnow-par%hcrit))/2.0_dp
+        f_alb = 1.0_dp - exp(-now%hsnow/par%hcrit)
         if (.not. bnd%alb) then 
             if (trim(par%alb_scheme) .eq. "slater") then
                 call albedo_slater(now%alb_snow,now%tsurf,par%tmin,par%tmax,par%alb_smax,par%alb_smin)
@@ -689,6 +694,7 @@ contains
         allocate(now%wind(npts))
         allocate(now%rhoa(npts))
         allocate(now%qq(npts))
+
         allocate(now%mask(npts))
 
         return 
@@ -734,6 +740,7 @@ contains
         deallocate(now%wind)
         deallocate(now%rhoa)
         deallocate(now%qq)
+
         deallocate(now%mask)
 
         return 

@@ -1,5 +1,5 @@
 &driver
-  nloop = 10,
+  nloop = 100,
   ntime = 365,
   nx    = 7,
   loi_mask(1:3) = 1,1,1, 
@@ -7,7 +7,7 @@
   validation = "data/transect_output.txt",
   output = "example.out",
 /
-['hcrit: 0.0167802 ', 'rcrit: 3.36793 ', 'amp: 3.265 ', 'alb_smax: 0.752903 ', 'alb_smin: 0.684539 ']
+['hcrit: 0.098615 ', 'rcrit: 2.78854 ', 'amp: 2.15321 ', 'alb_smax: 0.801691 ', 'alb_smin: 0.697785 ']
 &surface_physics
   boundary = "" "" "",
   tstic  = 86400.,
@@ -16,15 +16,15 @@
   clh    = 2.0e-4,
   shf_enh = 1.0,
   lhf_enh = 3.5,
-  alb_smax = 0.75,
-  alb_smin = 0.68,
+  alb_smax = 0.80,
+  alb_smin = 0.70,
   albi = 0.45,
   albl = 0.15,
   tmin = 263.15,
   tmax = 273.15,
-  hcrit = 0.017,
-  rcrit = 3.4,
-  amp = 3.3,
+  hcrit = 0.099,
+  rcrit = 2.8,
+  amp = 2.2,
   alb_scheme = "slater",
   tau_a = 0.008,
   tau_f = 0.24,
