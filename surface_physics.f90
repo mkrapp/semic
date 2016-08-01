@@ -196,7 +196,7 @@ contains
             now%tsurf = now%tsurf + qsb*par%tsticsub/par%ceff 
             ! store residual energy for subfreezing tsurf over ice and thick snow cover in qmr for later use in mass balance
             where ((now%mask == 2 .or. now%hsnow > par%hcrit) .and. now%tsurf > t0)
-                now%qmr = (now%tsurf-t0)*par%ceff/par%tstic
+                now%qmr =  now%qmr + (now%tsurf-t0)*par%ceff/par%tsticsub
                 now%tsurf = t0
             end where
         end if
@@ -244,7 +244,7 @@ contains
 
         where (now%mask >= 1)
             !> 2. Calculate Melt energy where temperature exceeds freezing (difference to heat at freezing)
-            qmelt = dmax1(0.0_dp,(above+now%qmr/par%ceff*par%tstic)*par%ceff/par%tstic)
+            qmelt = dmax1(0.0_dp,above*par%ceff/par%tstic+now%qmr)
             now%qmr = 0.0_dp
             !> 3. Calculate "cold" content
             ! watch the sign
@@ -535,13 +535,13 @@ contains
                                                   !! albedo equals the minimum albedo
         double precision, intent(in)  :: alb_smax !< maximum snow albedo
         double precision, intent(in)  :: alb_smin !< minimum snow albedo
-        double precision                 :: tm
-        double precision                 :: f
+        double precision              :: tm
+        double precision              :: f
 
         tm  = 0.0_dp
         ! flexible factor ensures continuous polynomial
         f = 1.0_dp/(t0-tmin)
-        if (tsurf >= tmin .and. tsurf < tmax) then
+        if (tsurf >= tmin .and. tsurf <= tmax) then
             tm = f*(tsurf - tmin)
         end if
         if (tsurf > t0) then
