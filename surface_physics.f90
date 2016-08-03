@@ -64,43 +64,43 @@ module surface_physics
         double precision, allocatable, dimension(:) :: melt        !< potential surface melt [m/s]
         double precision, allocatable, dimension(:) :: melted_snow !< actual melted snow [m/s]
         double precision, allocatable, dimension(:) :: melted_ice  !< actual melted ice [m/s]
-        double precision, allocatable, dimension(:) :: refr     !< refreezing [m/s]
-        double precision, allocatable, dimension(:) :: smb      !< surface mass balance [m/s]
-        double precision, allocatable, dimension(:) :: acc      !< surface accumulation [m/s]
-        double precision, allocatable, dimension(:) :: lhf      !< latent heat flux [W/m2]
-        double precision, allocatable, dimension(:) :: shf      !< sensible heat flux [W/m2]
-        double precision, allocatable, dimension(:) :: lwu      !< upwelling longwave radiation [W/m2]
-        double precision, allocatable, dimension(:) :: subl     !< sublimation [??]
-        double precision, allocatable, dimension(:) :: evap     !< evaporation [??]
-        double precision, allocatable, dimension(:) :: smb_snow !< surface mass balance of snow [m/s]
-        double precision, allocatable, dimension(:) :: smb_ice  !< surface mass balance of ice [m/s]
-        double precision, allocatable, dimension(:) :: runoff   !< potential surface runoff [m/s]
-        double precision, allocatable, dimension(:) :: qmr      !< heat flux from melting/refreezing [W/m2]
-        double precision, allocatable, dimension(:) :: qmr_res  !< residual heat flux from melting/refreezing(at end of time step) [W/m2]
+        double precision, allocatable, dimension(:) :: refr        !< refreezing [m/s]
+        double precision, allocatable, dimension(:) :: smb         !< surface mass balance [m/s]
+        double precision, allocatable, dimension(:) :: acc         !< surface accumulation [m/s]
+        double precision, allocatable, dimension(:) :: lhf         !< latent heat flux [W/m2]
+        double precision, allocatable, dimension(:) :: shf         !< sensible heat flux [W/m2]
+        double precision, allocatable, dimension(:) :: lwu         !< upwelling longwave radiation [W/m2]
+        double precision, allocatable, dimension(:) :: subl        !< sublimation [m/s]
+        double precision, allocatable, dimension(:) :: evap        !< evaporation [??]
+        double precision, allocatable, dimension(:) :: smb_snow    !< surface mass balance of snow [m/s]
+        double precision, allocatable, dimension(:) :: smb_ice     !< surface mass balance of ice [m/s]
+        double precision, allocatable, dimension(:) :: runoff      !< potential surface runoff [m/s]
+        double precision, allocatable, dimension(:) :: qmr         !< heat flux from melting/refreezing [W/m2]
+        double precision, allocatable, dimension(:) :: qmr_res     !< residual heat flux from melting/refreezing(at end of time step) [W/m2]
         ! Forcing variables
-        double precision, allocatable, dimension(:) :: sf       !< snow fall [m/s]
-        double precision, allocatable, dimension(:) :: rf       !< rain fall [m/s]
-        double precision, allocatable, dimension(:) :: sp       !< surface pressure [Pa]
-        double precision, allocatable, dimension(:) :: lwd      !< downwelling longwave radiation [W/m2]
-        double precision, allocatable, dimension(:) :: swd      !< downwelling shortwave radiation [W/m2]
-        double precision, allocatable, dimension(:) :: wind     !< surface wind speed [m/s]
-        double precision, allocatable, dimension(:) :: rhoa     !< air density [kg/m3]
-        double precision, allocatable, dimension(:) :: qq       !< air specific humidity [kg/kg]
-        integer,          allocatable, dimension(:) :: mask     !< ocean/land/ice mask [0/1/2]
+        double precision, allocatable, dimension(:) :: sf          !< snow fall [m/s]
+        double precision, allocatable, dimension(:) :: rf          !< rain fall [m/s]
+        double precision, allocatable, dimension(:) :: sp          !< surface pressure [Pa]
+        double precision, allocatable, dimension(:) :: lwd         !< downwelling longwave radiation [W/m2]
+        double precision, allocatable, dimension(:) :: swd         !< downwelling shortwave radiation [W/m2]
+        double precision, allocatable, dimension(:) :: wind        !< surface wind speed [m/s]
+        double precision, allocatable, dimension(:) :: rhoa        !< air density [kg/m3]
+        double precision, allocatable, dimension(:) :: qq          !< air specific humidity [kg/kg]
+        integer,          allocatable, dimension(:) :: mask        !< ocean/land/ice mask [0/1/2]
     end type
 
     type boundary_opt_class !< object to hold flags for overriding with external fields
-        logical :: t2m !< flag for 2m air temperature
+        logical :: t2m   !< flag for 2m air temperature
         logical :: tsurf !< flag for surface temperature
         logical :: hsnow !< flag for snow height
-        logical :: alb !< flag for albedo
-        logical :: melt !< flag for melting
-        logical :: refr !< flag for refreezing
-        logical :: smb !< flag for surface mass balance
-        logical :: acc !< flag for accumulation
-        logical :: lhf !< flag for latent heat flux
-        logical :: shf !< flag for senible heat flux
-        logical :: subl !< flag for sublimation/refreezing
+        logical :: alb   !< flag for albedo
+        logical :: melt  !< flag for melting
+        logical :: refr  !< flag for refreezing
+        logical :: smb   !< flag for surface mass balance
+        logical :: acc   !< flag for accumulation
+        logical :: lhf   !< flag for latent heat flux
+        logical :: shf   !< flag for senible heat flux
+        logical :: subl  !< flag for sublimation/refreezing
     end type
 
     type surface_physics_class !< container which holds all used objects
@@ -240,12 +240,12 @@ contains
             below, above, f_rz, f_alb, refrozen_rain, refrozen_snow, snow_to_ice 
 
         !> 1. Calculate above-/below-freezing temperatures for a given mean temperature
-        call diurnal_cycle(par%amp,now%tsurf-t0,above,below)
+        call diurnal_cycle(par%amp,now%tsurf-t0+now%qmr/par%ceff*par%tstic,above,below)
+        now%qmr = 0.0_dp
 
         where (now%mask >= 1)
             !> 2. Calculate Melt energy where temperature exceeds freezing (difference to heat at freezing)
-            qmelt = dmax1(0.0_dp,above*par%ceff/par%tstic+now%qmr)
-            now%qmr = 0.0_dp
+            qmelt = dmax1(0.0_dp,above*par%ceff/par%tstic)
             !> 3. Calculate "cold" content
             ! watch the sign
             qcold = dmax1(0.0_dp,abs(below)*par%ceff/par%tstic)
@@ -276,7 +276,7 @@ contains
         ! energy needed for melting is added to residual energy
         !now%qmr = now%qmr + now%melt*rhow*clm
 
-        !> 5. Refreezing as fraction of melt (increases with snow height)
+        !> 5. Refreezing (m/s) as fraction of melt (increases with snow height)
         if (.not. bnd%refr) then
             !where (now%mask == 2)
             !    f_rz = 1.0_dp
@@ -285,7 +285,7 @@ contains
                 !f_rz = (1.0_dp+tanh(now%hsnow-par%rcrit))/2.0_dp
             !f_rz = dmin1(1.0_dp,now%hsnow/par%rcrit)
             !end where
-            f_rz = 1.0_dp - exp(-now%hsnow/par%rcrit)
+            f_rz = 1.0_dp! - exp(-now%hsnow/par%rcrit)
             ! potential refreezing
             now%refr = qcold/(rhow*clm)
             refrozen_rain = dmin1(now%refr,now%rf)
@@ -313,7 +313,7 @@ contains
         
         !> 8. Surface mass balance of snow
         if (.not. bnd%smb) then
-            now%smb_snow = now%sf - now%subl/rhow - now%melted_snow + refrozen_snow
+            now%smb_snow = now%sf - now%subl/rhow - now%melted_snow + refrozen_snow + refrozen_rain
         end if
 
         where (now%mask == 0)
@@ -326,7 +326,7 @@ contains
         !> 10. Relax snow height to maximum (eg, 5 m)
         snow_to_ice   = dmax1(0.d0,now%hsnow-hsmax)
         now%hsnow   = now%hsnow - snow_to_ice
-        now%smb_ice = snow_to_ice/par%tstic - now%melted_ice + refrozen_rain  ! Use to force ice sheet model
+        now%smb_ice = snow_to_ice/par%tstic - now%melted_ice! + refrozen_rain  ! Use to force ice sheet model
         now%hice    = now%hice + now%smb_ice*par%tstic ! update new ice budget: remove or add ice
 
         !> 11. Total surface mass balance
@@ -378,6 +378,7 @@ contains
         end where
 
         now%subl = now%subl/rhow
+        now%refr = now%refr - now%subl
 
     end subroutine mass_balance
 
