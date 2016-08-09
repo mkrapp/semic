@@ -44,8 +44,6 @@ module surface_physics
         double precision    :: tmax      !< maximum temperature for which albedo decline becomes effective ("slater") [K]
         double precision    :: tstic     !< time step [s]
         double precision    :: tsticsub  !< sub-time step [s]
-        double precision    :: shf_enh   !< sensible heat flux enhancement factor for positive u*(tsurf-t2m) [no unit]
-        double precision    :: lhf_enh   !< latent heat flux enhancement factor over land (mask==1) [no unit]
         double precision    :: tau_a     !< dry albedo decline for "isba" albedo scheme [1/day]
         double precision    :: tau_f     !< wet albedo decline for "isba" albedo scheme [1/day]
         double precision    :: w_crit    !< critical liquid water content for "isba" albedo scheme [kg/m2]
@@ -168,7 +166,7 @@ contains
         !! bulk formulation of sensible heat flux (W/m^2)
         if (.not. bnd%shf) then
             now%shf = 0.0_dp
-            call sensible_heat_flux(now%tsurf, now%t2m, now%wind, now%rhoa, par%csh, par%shf_enh, cap, now%shf)
+            call sensible_heat_flux(now%tsurf, now%t2m, now%wind, now%rhoa, par%csh, cap, now%shf)
         end if
 
         !> 2. surface_physics::latent_heat_flux \n
@@ -179,7 +177,7 @@ contains
             now%evap = 0.0_dp
             now%lhf  = 0.0_dp
             call latent_heat_flux(now%tsurf, now%wind, now%qq, now%sp, now%rhoa, now%mask, &
-                                  par%clh, par%lhf_enh, eps, cls, clv, now%lhf, now%subl, now%evap)
+                                  par%clh, eps, cls, clv, now%lhf, now%subl, now%evap)
         end if
 
         !> 3. surface_physics::longwave_upward \n
@@ -384,73 +382,56 @@ contains
 
 
     !> Bulk formulation of sensible heat flux
-    elemental subroutine sensible_heat_flux(ts,ta,wind,rhoa,csh,enh,cap,shf)
+    elemental subroutine sensible_heat_flux(ts, ta, wind, rhoa, csh, cap, shf)
         double precision, intent(in) :: ts !< surface temperature
         double precision, intent(in) :: ta !< air temperature
         double precision, intent(in) :: wind !< wind speed
         double precision, intent(in) :: rhoa !< air density
         double precision, intent(in) :: csh !< sensible heat exchange coefficient
         double precision, intent(in) :: cap !< air specific heat capacity
-        double precision, intent(in) :: enh !< enhancement factor to increase heat flux 
-                                            !! for positive fluxes (during summer)
         double precision, intent(out) :: shf !< sensible heat flux
-        double precision :: coeff
-
-        ! enhancement over land
-        if ( wind*(ts-ta) > 0.0_dp ) then
-            coeff = enh*csh
-        else
-            coeff = csh
-        end if
         
-        shf = coeff*cap*rhoa*wind*(ts-ta)
+        shf = csh*cap*rhoa*wind*(ts-ta)
+
     end subroutine sensible_heat_flux
 
 
     !> Bulk formulation of latent heat flux
-    elemental subroutine latent_heat_flux(ts, wind, shum, sp, rhoatm, mask, clh, enh, eps, cls, clv, lhf, subl, evap)
-        double precision, intent(in) :: ts !< surface temperature
-        double precision, intent(in) :: shum !< specific humidity
-        double precision, intent(in) :: sp !< surface pressure
-        double precision, intent(in) :: rhoatm !< air density
-        double precision, intent(in) :: wind !< wind speed
-        double precision, intent(in) :: clh !< latent heat exchange coefficient
-        double precision, intent(in) :: eps !< ratio of the molar weight of water vapor
-                                            !! to the molar weight of dry air
-        double precision, intent(in) :: cls !< latent heat of sublimation
-        double precision, intent(in) :: clv !< latent heat of vaporisation
-        double precision, intent(in) :: enh !< enhancement factor to increase
-                                            !! latent heat flux over land 
-        integer, intent(in)  :: mask        !< mask
+    elemental subroutine latent_heat_flux(ts, wind, shum, sp, rhoatm, mask, clh, eps, cls, clv, lhf, subl, evap)
+        double precision, intent(in)  :: ts !< surface temperature
+        double precision, intent(in)  :: shum !< specific humidity
+        double precision, intent(in)  :: sp !< surface pressure
+        double precision, intent(in)  :: rhoatm !< air density
+        double precision, intent(in)  :: wind !< wind speed
+        double precision, intent(in)  :: clh !< latent heat exchange coefficient
+        double precision, intent(in)  :: eps !< ratio of the molar weight of water vapor
+                                             !! to the molar weight of dry air
+        double precision, intent(in)  :: cls !< latent heat of sublimation
+        double precision, intent(in)  :: clv !< latent heat of vaporisation
+        integer,          intent(in)  :: mask        !< mask
         double precision, intent(out) :: lhf !< latent heat flux
         double precision, intent(out) :: evap !< evaporation
         double precision, intent(out) :: subl !< sublimation
-        double precision :: esat_sur, shum_sat, coeff
+        double precision :: esat_sur, shum_sat
 
         subl = 0.0_dp
         evap = 0.0_dp
         lhf  = 0.0_dp
         esat_sur = 0.0_dp
         shum_sat = 0.0_dp
-        coeff = 0.0_dp
-        if (mask == 1) then
-            coeff = enh*clh
-        else
-            coeff = clh
-        end if
         if (ts < t0) then
             esat_sur = ei_sat(ts)
             ! specific humidity at surface (assumed to be saturated) is
             shum_sat = esat_sur*eps/(esat_sur*(eps-1.0_dp)+sp)
             ! sublimation/deposition depends on air specific humidity
-            subl = coeff*wind*rhoatm*(shum_sat-shum)
+            subl = clh*wind*rhoatm*(shum_sat-shum)
             lhf = subl*cls
         else
             esat_sur = ew_sat(ts)
             ! evaporation/condensation
             ! specific humidity at surface (assumed to be saturated) is
             shum_sat = esat_sur*eps/(esat_sur*(eps-1.0_dp)+sp)
-            evap = coeff*wind*rhoatm*(shum_sat-shum)
+            evap = clh*wind*rhoatm*(shum_sat-shum)
             lhf = evap*clv
         end if
     end subroutine latent_heat_flux
@@ -758,13 +739,13 @@ contains
 
         ! Declaration of namelist parameters
         double precision    :: ceff, albi, albl, alb_smax, alb_smin, hcrit, rcrit, &
-                               amp, csh, clh, shf_enh, lhf_enh, tmin, tmax, &
+                               amp, csh, clh, tmin, tmax, &
                                tstic, &
                                afac, tmid, &
                                tau_a, tau_f, w_crit, mcrit
         integer :: n_ksub
 
-        namelist /surface_physics/ boundary, tstic, ceff, csh, clh, shf_enh, lhf_enh, &
+        namelist /surface_physics/ boundary, tstic, ceff, csh, clh, &
                                    alb_smax, alb_smin, albi, albl, &
                                    tmin, tmax, hcrit, rcrit, amp, &
                                    tau_a, tau_f, w_crit, mcrit, &
@@ -797,8 +778,6 @@ contains
         tmid          = par%tmid 
 
         n_ksub        = par%n_ksub
-        shf_enh       = par%shf_enh
-        lhf_enh       = par%lhf_enh
 
         ! Read parameters from input namelist file
         open(7,file=trim(filename))
@@ -831,8 +810,6 @@ contains
         par%tmid       = tmid
 
         par%n_ksub     = n_ksub
-        par%shf_enh    = shf_enh
-        par%lhf_enh    = lhf_enh
 
         ! initialize sub-daily time step tsticsub
         par%tsticsub = par%tstic / dble(par%n_ksub)
@@ -936,8 +913,6 @@ contains
         write(*,'(a,g13.6)') 'tau_f      ', par%tau_f
         write(*,'(a,g13.6)') 'w_crit     ', par%w_crit
         write(*,'(a,g13.6)') 'mcrit      ', par%mcrit
-        write(*,'(a,g13.6)') 'shf_enh    ', par%shf_enh
-        write(*,'(a,g13.6)') 'lhf_enh    ', par%lhf_enh
 
     end subroutine print_param
     
