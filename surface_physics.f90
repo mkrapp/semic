@@ -193,15 +193,15 @@ contains
         if (.not. bnd%tsurf) then
             now%tsurf = now%tsurf + qsb*par%tsticsub/par%ceff 
             ! store residual energy for subfreezing tsurf over ice and thick snow cover in qmr for later use in mass balance
-            where ((now%mask == 2 .or. now%hsnow > par%hcrit) .and. now%tsurf > t0)
-                now%qmr =  now%qmr + (now%tsurf-t0)*par%ceff/par%tsticsub
+            where ((now%mask == 2 .or. now%hsnow > 0.0_dp) .and. now%tsurf > t0)
+                now%qmr =  (now%tsurf-t0)*par%ceff/par%tsticsub
                 now%tsurf = t0
             end where
         end if
 
         !> 6. Update 2m air temperature over ice sheet
         !now%t2m = now%t2m + (now%shf+now%lhf)*par%tsticsub/par%ceff
-        where ((now%mask == 2 .or. now%hsnow > par%hcrit))
+        where ((now%mask == 2 .or. now%hsnow > 0.0_dp))
             now%t2m = now%t2m + (now%shf+now%lhf)*par%tsticsub/par%ceff
         end where
 
@@ -311,7 +311,7 @@ contains
         
         !> 8. Surface mass balance of snow
         if (.not. bnd%smb) then
-            now%smb_snow = now%sf - now%subl/rhow - now%melted_snow + refrozen_snow + refrozen_rain
+            now%smb_snow = now%sf - now%subl/rhow - now%melted_snow + refrozen_snow! + refrozen_rain
         end if
 
         where (now%mask == 0)
@@ -324,7 +324,7 @@ contains
         !> 10. Relax snow height to maximum (eg, 5 m)
         snow_to_ice   = dmax1(0.d0,now%hsnow-hsmax)
         now%hsnow   = now%hsnow - snow_to_ice
-        now%smb_ice = snow_to_ice/par%tstic - now%melted_ice! + refrozen_rain  ! Use to force ice sheet model
+        now%smb_ice = snow_to_ice/par%tstic - now%melted_ice + refrozen_rain  ! Use to force ice sheet model
         now%hice    = now%hice + now%smb_ice*par%tstic ! update new ice budget: remove or add ice
 
         !> 11. Total surface mass balance
