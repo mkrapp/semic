@@ -118,6 +118,7 @@ module surface_physics
     private
     public :: mass_balance, energy_balance, surface_energy_and_mass_balance
     public :: surface_physics_class, surface_state_class, surface_param_class
+    public :: boundary_opt_class
     public :: surface_physics_par_load, surface_alloc, surface_dealloc
     public :: surface_boundary_define, surface_physics_average
     public :: print_param, print_boundary_opt
