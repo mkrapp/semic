@@ -13,8 +13,8 @@ def write_namelist(fname,names,particle):
     f.write('  ceff = 2.0e6,\n')
     f.write('  csh = 2.0e-3,\n')
     f.write('  clh = 5.0e-4,\n')
-    f.write('  albi = 0.45,\n')
-    f.write('  albl = 0.15,\n')
+#    f.write('  albi = 0.45,\n')
+#    f.write('  albl = 0.15,\n')
 #    f.write('  alb_smin = 0.79,\n')
 #    f.write('  alb_smax = 0.91,\n')
 #    f.write('  hcrit = 0.5,\n')
@@ -32,7 +32,7 @@ def write_namelist(fname,names,particle):
     # loop through parameter values
     for j in range(0,len(names)):
     	f.write('  ' + names[j] + ' = %.8f' % particle["pos"][j] + ',\n')
-    f.write('  alb_scheme = "slater",\n')
+    f.write('  alb_scheme = "none",\n')
     f.write('/\n')
     f.write('&smb_output\n')
     f.write('  file_timser  = "",\n')
@@ -55,7 +55,7 @@ def run_particles(pop, nml_prefix):
     i0 = 0
     i1 = len(pop)-1
     #call(["./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])
-    call(["mpiexec","-n","5","./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])    
+    call(["mpiexec","-n","2","./"+exe,'"'+nml_prefix+'"',str(i0),str(i1)])    
     for p in pop:
         output = nml_prefix+"%06d.out" % p["id"]
         cost[p["id"]] = np.loadtxt(output)
