@@ -24,9 +24,9 @@ def latin_hypercube(minmax,max_iter):
         low=float(minmax[i][0])
         high=float(minmax[i][1])
         delta=(high-low)/float(max_iter)
-    for j in range(max_iter):
-        tmp.append(random.uniform(low+j*delta,low+(j+1)*delta))
-    pranges.append(tmp)
+        for j in range(max_iter):
+            tmp.append(random.uniform(low+j*delta,low+(j+1)*delta))
+        pranges.append(tmp)
 
     s=[]
     for i in range(k):
@@ -42,9 +42,9 @@ def latin_hypercube(minmax,max_iter):
         result.append(tmp)
 
     sample = []
-    for l in range(0,len(result)):
+    for l in range(len(result)):
         tmp=[]
-        for j in range(0,len(result[l])):
+        for j in range(len(result[l])):
             tmp.append(pranges[j][result[l][j]])
         sample.append(tmp)
     return sample

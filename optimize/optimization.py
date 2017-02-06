@@ -4,6 +4,7 @@ from optimization_algorithms import particle_swarm_optimization as pso
 from optimization_algorithms import evolution_strategies as es
 from optimization_algorithms import cultural_algorithm as ca
 from optimization_algorithms import random_search as rs
+from optimization_algorithms import latin_hypercube_search as lhs
 from optimization_algorithms import harmony_search as hs
 import plot_costs as pc
 from tools import run_particles, get_params, init_search
@@ -30,6 +31,27 @@ def search_rs(search_space, max_iter, prefix):
     f.close()
     return best
 
+def search_lhs(search_space, max_iter, prefix):
+    f, tmpdir = init_search(prefix,names)
+    pop = []
+    lh = lhs.latin_hypercube(search_space,max_iter)
+    for i in range(max_iter):
+        candidate = {}
+        candidate["id"] = i
+        candidate["pos"] = lh[i]
+        pop.append(candidate)
+    best = None
+    cost = run_particles(pop,tmpdir+'/'+prefix)
+    for i,candidate in enumerate(pop):
+        candidate["cost"] = cost[candidate["id"]]
+        if best is None or candidate["cost"] < best["cost"]: best = candidate
+        f.write("%i %.4g " % (i, best["cost"]))
+        [f.write("%.4g "%p) for p in best["pos"]]
+        f.write("\n")
+        print " > iteration %i, best=%.4g" % (i, best["cost"])
+        print [names[i] + ": %.4g " % p for i,p in enumerate(best["pos"])]
+    f.close()
+    return best
 
 def search_pso(max_gens, search_space, pop_size, c1, c2, prefix):
     f, tmpdir = init_search(prefix,names)
@@ -221,6 +243,15 @@ if __name__ == "__main__":
         print  "Done! Best solution: f = %.4g, v =" % best["cost"], best["pos"]
         plot(args,'rs_cost.txt')
 
+
+    def run_lhs(args):
+        max_iter = args.max_iter
+        print 'Run Latin Hypercube Search for %i iterations' % max_iter
+        best = search_lhs(search_space, max_iter, 'lhs_')
+        print  "Done! Best solution: f = %.4g, v =" % best["cost"], best["pos"]
+        plot(args,'rs_cost.txt')
+
+
     def run_hs(args):
         mem_size = args.mem_size
         consid_rate = args.consid_rate
@@ -265,6 +296,12 @@ if __name__ == "__main__":
     rs_parser.add_argument('--plot', help='Plot the optimal parameter matrix plot.', action='store_true', default=False)
     rs_parser.add_argument('--save', help='Save the optimal parameter matrix plot.', action='store_true', default=False)
     rs_parser.set_defaults(func=run_rs)
+
+    lhs_parser = sub_parser.add_parser('lhs',help='Latin Hypercube Search')
+    lhs_parser.add_argument('--max-iter','-m', help='Number of iterations (default=%(default)s)',type=int, default=100)
+    lhs_parser.add_argument('--plot', help='Plot the optimal parameter matrix plot.', action='store_true', default=False)
+    lhs_parser.add_argument('--save', help='Save the optimal parameter matrix plot.', action='store_true', default=False)
+    lhs_parser.set_defaults(func=run_lhs)
 
     hs_parser = sub_parser.add_parser('hs',help='Harmony Search')
     hs_parser.add_argument('--max-iter','-m', help='Number of iterations (default=%(default)s)',type=int, default=500)
