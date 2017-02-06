@@ -7,9 +7,9 @@
 module surface_physics
 
     implicit none 
-     
+
     integer, parameter:: dp=kind(0.d0) !< define precision (machine specific)
-    
+
     ! constansts used throughout this module
     double precision, parameter :: pi   = 3.141592653589793238462643_dp !< pi
     double precision, parameter :: t0   = 273.15_dp  !< melting point [K]
@@ -27,7 +27,7 @@ module surface_physics
     type surface_param_class !< Define all parameters needed for the surface module
         character (len=256) :: name         !< domain name
         character (len=256) :: boundary(30) !< list of vriables names to be overriden by external fields
-        character (len=256) :: alb_scheme   !< name of albedo scheme: 'slater', 'isba', 'denby', or 'alex'
+        character (len=256) :: alb_scheme   !< name of albedo scheme: 'slater', 'isba', 'denby', 'alex', or 'none'
         integer             :: nx        !< number of grid points
         integer             :: n_ksub    !< number of sub-daily time steps
         double precision    :: ceff      !< surface specific heat capacity of snow/ice [J/Km2]
@@ -75,6 +75,7 @@ module surface_physics
         double precision, allocatable, dimension(:) :: runoff      !< potential surface runoff [m/s]
         double precision, allocatable, dimension(:) :: qmr         !< heat flux from melting/refreezing [W/m2]
         double precision, allocatable, dimension(:) :: qmr_res     !< residual heat flux from melting/refreezing(at end of time step) [W/m2]
+        double precision, allocatable, dimension(:) :: amp         !< diurnal cycle amplitude [K]
         ! Forcing variables
         double precision, allocatable, dimension(:) :: sf          !< snow fall [m/s]
         double precision, allocatable, dimension(:) :: rf          !< rain fall [m/s]
@@ -99,6 +100,7 @@ module surface_physics
         logical :: lhf   !< flag for latent heat flux
         logical :: shf   !< flag for senible heat flux
         logical :: subl  !< flag for sublimation/refreezing
+        logical :: amp   !< flag for diurnal cycle amplitude
     end type
 
     type surface_physics_class !< container which holds all used objects
@@ -123,8 +125,8 @@ module surface_physics
     public :: surface_boundary_define, surface_physics_average
     public :: print_param, print_boundary_opt
 
-    public :: sigm, cap, eps, cls, clv  
-    public :: longwave_upward, latent_heat_flux, sensible_heat_flux 
+    public :: sigm, cap, eps, cls, clv
+    public :: longwave_upward, latent_heat_flux, sensible_heat_flux
 
 contains
 
@@ -139,7 +141,7 @@ contains
 
         integer, intent(in) :: day !< current day
         integer, intent(in) :: year !< current year
-        
+
         integer :: ksub
 
         ! quasi-relaxation loop for energy and mass balance (without hsnow update)
@@ -173,13 +175,14 @@ contains
         !> 2. surface_physics::latent_heat_flux \n
         !! bulk formulation of latent heat flux (W/m^2), only accounts for sublimation/deposition,
         !! not for evaporation/condensation (would require estimate of liquid water content)
-        if (.not. bnd%lhf) then  
+        if (.not. bnd%lhf) then
             now%subl = 0.0_dp
             now%evap = 0.0_dp
             now%lhf  = 0.0_dp
             call latent_heat_flux(now%tsurf, now%wind, now%qq, now%sp, now%rhoa, now%mask, &
                                   par%clh, eps, cls, clv, now%lhf, now%subl, now%evap)
         end if
+        now%subl = now%subl/rhow ! sublimation was calculated as kg/(s m2) -> m/s
 
         !> 3. surface_physics::longwave_upward \n
         !! outgoing long-wave flux following Stefan-Boltzmann's law (W/m^2)
@@ -233,13 +236,16 @@ contains
 
         integer, intent(in) :: day !< current day
         integer, intent(in) :: year !< current year
-        
+
         ! auxillary variables
         double precision, dimension(par%nx) :: qmelt, qcold, &
-            below, above, f_rz, f_alb, refrozen_rain, refrozen_snow, snow_to_ice 
+            below, above, f_rz, f_alb, refrozen_rain, refrozen_snow, snow_to_ice
 
         !> 1. Calculate above-/below-freezing temperatures for a given mean temperature
-        call diurnal_cycle(par%amp,now%tsurf-t0+now%qmr/par%ceff*par%tstic,above,below)
+        if (.not. bnd%amp) then
+            now%amp = par%amp
+        end if
+        call diurnal_cycle(now%amp,now%tsurf-t0+now%qmr/par%ceff*par%tstic,above,below)
         now%qmr = 0.0_dp
 
         where (now%mask >= 1)
@@ -268,23 +274,14 @@ contains
                 now%melt = now%melted_snow + now%melted_ice
             elsewhere
                 now%melt = now%melted_snow
-                !now%qmr = now%qmr + now%melted_ice*rhow*clm
                 now%melted_ice = 0.0_dp
             end where
         end if
-        ! energy needed for melting is added to residual energy
-        !now%qmr = now%qmr + now%melt*rhow*clm
 
         !> 5. Refreezing (m/s) as fraction of melt (increases with snow height)
         if (.not. bnd%refr) then
-            !where (now%mask == 2)
-            !    f_rz = 1.0_dp
-            !else where
-                !f_rz = now%hsnow/(now%hsnow+par%rcrit)
-                !f_rz = (1.0_dp+tanh(now%hsnow-par%rcrit))/2.0_dp
-            !f_rz = dmin1(1.0_dp,now%hsnow/par%rcrit)
-            !end where
-            f_rz = 1.0_dp! - exp(-now%hsnow/par%rcrit)
+            f_rz = 0.0_dp
+            where (now%hsnow>0.0_dp) f_rz = par%rcrit!1.0_dp - exp(-now%hsnow/par%rcrit)
             ! potential refreezing
             now%refr = qcold/(rhow*clm)
             refrozen_rain = dmin1(now%refr,now%rf)
@@ -299,7 +296,7 @@ contains
             ! energy released during refreezing that has not been used
             ! is subtracted from residual energy
             now%qmr = now%qmr - (1.0_dp - f_rz)*now%refr*rhow*clm
-        end if 
+        end if
 
         !> 6. Runoff
         now%runoff = 0.0_dp
@@ -307,12 +304,12 @@ contains
 
         !> 7. Accumulation: sum of all incoming solid water (just diagnostic, here)
         if (.not. bnd%acc) then
-            now%acc = now%sf - now%subl/rhow + now%refr
+            now%acc = now%sf - now%subl + now%refr
         end if
-        
+
         !> 8. Surface mass balance of snow
         if (.not. bnd%smb) then
-            now%smb_snow = now%sf - now%subl/rhow - now%melted_snow + refrozen_snow! + refrozen_rain
+            now%smb_snow = now%sf - now%subl - now%melted_snow + refrozen_snow
         end if
 
         where (now%mask == 0)
@@ -321,7 +318,7 @@ contains
             !> 9. Update snow height
             now%hsnow = dmax1(0.0_dp, now%hsnow + now%smb_snow*par%tstic)
         end where
-        
+
         !> 10. Relax snow height to maximum (eg, 5 m)
         snow_to_ice   = dmax1(0.d0,now%hsnow-hsmax)
         now%hsnow   = now%hsnow - snow_to_ice
@@ -338,8 +335,6 @@ contains
         end if
 
         !> 12. Update snow albedo
-        !f_alb = now%hsnow/(now%hsnow+par%hcrit)
-        !f_alb = (1.0_dp+tanh(now%hsnow-par%hcrit))/2.0_dp
         f_alb = 1.0_dp - exp(-now%hsnow/par%hcrit)
         if (.not. bnd%alb) then 
             if (trim(par%alb_scheme) .eq. "slater") then
@@ -351,6 +346,9 @@ contains
             if (trim(par%alb_scheme) .eq. "isba") then
                 call albedo_isba(now%alb_snow,now%sf,now%melt,par%tstic,par%tstic,par%tau_a,par%tau_f,&
                                  par%w_crit,par%mcrit,par%alb_smin,par%alb_smax)
+            if (trim(par%alb_scheme) .eq. "none") then
+                now%alb_snow = par%alb_smax
+            end if
             end if
             where (now%mask == 2)
                 now%alb = par%albi + f_alb*(now%alb_snow - par%albi)
@@ -361,23 +359,20 @@ contains
             where (now%mask == 0)
                 now%alb = 0.06_dp
             end where
-            
+
             if (trim(par%alb_scheme) .eq. "alex") then
                 now%alb_snow = par%alb_smin + (par%alb_smax - par%alb_smin)*(0.5_dp*tanh(par%afac*(now%t2m-par%tmid))+0.5_dp) 
-                now%alb      = now%alb_snow 
+                now%alb      = now%alb_snow
             end if
 
         end if
-        
+
         ! store residual energy
         where (now%mask == 0)
             now%qmr_res = 0.0_dp
         elsewhere
             now%qmr_res = now%qmr
         end where
-
-        now%subl = now%subl/rhow
-        now%refr = now%refr - now%subl
 
     end subroutine mass_balance
 
@@ -391,7 +386,7 @@ contains
         double precision, intent(in) :: csh !< sensible heat exchange coefficient
         double precision, intent(in) :: cap !< air specific heat capacity
         double precision, intent(out) :: shf !< sensible heat flux
-        
+
         shf = csh*cap*rhoa*wind*(ts-ta)
 
     end subroutine sensible_heat_flux
@@ -578,27 +573,27 @@ contains
         character(len=*)  :: step                        !< current step:
                                                          !! "init", "step", or "end"
         double precision, optional, intent(in) :: nt     !< number of total steps
-        
-        call field_average(ave%t2m,     now%t2m,  step,nt)
-        call field_average(ave%tsurf,   now%tsurf,step,nt)
-        call field_average(ave%hsnow,   now%hsnow,step,nt)
-        call field_average(ave%alb,     now%alb,  step,nt)
-        call field_average(ave%melt,    now%melt, step,nt)
-        call field_average(ave%refr,    now%refr, step,nt)
-        call field_average(ave%smb,     now%smb,  step,nt)
-        call field_average(ave%acc,     now%acc,  step,nt)
-        call field_average(ave%lhf,     now%lhf,  step,nt)
-        call field_average(ave%shf,     now%shf,  step,nt)
-        call field_average(ave%lwu,     now%lwu,  step,nt)
 
-        call field_average(ave%sf,      now%sf,   step,nt)
-        call field_average(ave%rf,      now%rf,   step,nt)
-        call field_average(ave%sp,      now%sp,   step,nt)
-        call field_average(ave%lwd,     now%lwd,  step,nt)
-        call field_average(ave%swd,     now%swd,  step,nt)
-        call field_average(ave%wind,    now%wind, step,nt)
-        call field_average(ave%rhoa,    now%rhoa, step,nt)
-        call field_average(ave%qq,      now%qq,   step,nt)
+        call field_average(ave%t2m,   now%t2m,   step,nt)
+        call field_average(ave%tsurf, now%tsurf, step,nt)
+        call field_average(ave%hsnow, now%hsnow, step,nt)
+        call field_average(ave%alb,   now%alb,   step,nt)
+        call field_average(ave%melt,  now%melt,  step,nt)
+        call field_average(ave%refr,  now%refr,  step,nt)
+        call field_average(ave%smb,   now%smb,   step,nt)
+        call field_average(ave%acc,   now%acc,   step,nt)
+        call field_average(ave%lhf,   now%lhf,   step,nt)
+        call field_average(ave%shf,   now%shf,   step,nt)
+        call field_average(ave%lwu,   now%lwu,   step,nt)
+
+        call field_average(ave%sf,    now%sf,    step,nt)
+        call field_average(ave%rf,    now%rf,    step,nt)
+        call field_average(ave%sp,    now%sp,    step,nt)
+        call field_average(ave%lwd,   now%lwd,   step,nt)
+        call field_average(ave%swd,   now%swd,   step,nt)
+        call field_average(ave%wind,  now%wind,  step,nt)
+        call field_average(ave%rhoa,  now%rhoa,  step,nt)
+        call field_average(ave%qq,    now%qq,    step,nt)
 
         return
 
@@ -634,8 +629,8 @@ contains
 
         return 
 
-    end subroutine field_average 
- 
+    end subroutine field_average
+
 
     !> Allocation of all fields of the surface_physics::state_class
     subroutine surface_alloc(now,npts)
@@ -667,6 +662,7 @@ contains
         allocate(now%evap(npts))
         allocate(now%qmr(npts))
         allocate(now%qmr_res(npts))
+        allocate(now%amp(npts))
 
         ! forcing fields
         allocate(now%sf(npts))
@@ -713,6 +709,7 @@ contains
         deallocate(now%evap)
         deallocate(now%qmr)
         deallocate(now%qmr_res)
+        deallocate(now%amp)
 
         ! forcing fields
         deallocate(now%sf)
@@ -785,9 +782,9 @@ contains
         read(7,nml=surface_physics)
         close(7)
 !         write(*,nml=surface_physics)
-        
+
         ! Store local parameter values in output object
-        par%boundary   = boundary 
+        par%boundary   = boundary
         par%ceff       = ceff           ! effective heat capacity of snow/ice
         par%albi       = albi           ! background bare ice (bare ice)
         par%albl       = albl           ! background bare land (bare land)
@@ -824,16 +821,16 @@ contains
     !! calculated variables.
     subroutine surface_boundary_define(bnd,boundary)
 
-        implicit none 
+        implicit none
 
         type(boundary_opt_class), intent(in out) :: bnd !< boundary switches
         character(len=256), intent(in) :: boundary(:)   !< list of variable names for 
                                                         !! which overriding is requested.
-        integer :: q 
+        integer :: q
 
         ! First set all boundary fields to false
         bnd%t2m     = .FALSE.
-        bnd%tsurf   = .FALSE. 
+        bnd%tsurf   = .FALSE.
         bnd%hsnow   = .FALSE.
         bnd%alb     = .FALSE.
         bnd%melt    = .FALSE.
@@ -841,38 +838,41 @@ contains
         bnd%smb     = .FALSE.
         bnd%acc     = .FALSE.
         bnd%lhf     = .FALSE.
-        bnd%shf     = .FALSE. 
-        bnd%subl    = .FALSE. 
+        bnd%shf     = .FALSE.
+        bnd%subl    = .FALSE.
+        bnd%amp     = .FALSE.
 
-        ! Now find boundary fields 
+        ! Now find boundary fields
         do q = 1,size(boundary)
 
             select case(trim(boundary(q)))
 
-                case("t2m")   
-                    bnd%t2m     = .TRUE.
+                case("t2m")
+                    bnd%t2m   = .TRUE.
                 case("tsurf")
-                    bnd%tsurf   = .TRUE. 
+                    bnd%tsurf = .TRUE.
                 case("hsnow")
-                    bnd%hsnow   = .TRUE. 
+                    bnd%hsnow = .TRUE.
                 case("alb")
-                    bnd%alb     = .TRUE. 
+                    bnd%alb   = .TRUE.
                 case("melt")
-                    bnd%melt    = .TRUE. 
+                    bnd%melt  = .TRUE.
                 case("refr")
-                    bnd%refr    = .TRUE. 
+                    bnd%refr  = .TRUE.
                 case("smb")
-                    bnd%smb     = .TRUE. 
+                    bnd%smb   = .TRUE.
                 case("acc")
-                    bnd%acc     = .TRUE. 
+                    bnd%acc   = .TRUE.
                 case("lhf")
-                    bnd%lhf     = .TRUE.
+                    bnd%lhf   = .TRUE.
                 case("shf")
-                    bnd%shf     = .TRUE.
+                    bnd%shf   = .TRUE.
                 case("subl")
-                    bnd%subl    = .TRUE.
-                case DEFAULT 
-                    ! pass 
+                    bnd%subl  = .TRUE.
+                case("amp")
+                    bnd%amp   = .TRUE.
+                case DEFAULT
+                    ! pass
             end select 
         end do 
 
@@ -883,7 +883,7 @@ contains
 
     !> Print parameters from namelist
     subroutine print_param(par)
-        
+
         type(surface_param_class), intent(in) :: par !< parameter object
         integer :: q
 
@@ -916,8 +916,8 @@ contains
         write(*,'(a,g13.6)') 'mcrit      ', par%mcrit
 
     end subroutine print_param
-    
-    
+
+
     !> Print boundary switches of variables from namelist
     subroutine print_boundary_opt(bnd)
         type(boundary_opt_class), intent(in) :: bnd !< boundary switches
@@ -931,8 +931,9 @@ contains
         write(*,'(a,l1)') 'shf     ', bnd%shf
         write(*,'(a,l1)') 'subl    ', bnd%subl
         write(*,'(a,l1)') 'smb     ', bnd%smb
+        write(*,'(a,l1)') 'amp     ', bnd%amp
     end subroutine print_boundary_opt
 
 
-   
+
 end module surface_physics
