@@ -22,6 +22,7 @@ module surface_physics
     double precision, parameter :: cap  = 1000.0_dp  !< specific heat capacitiy of air [J/(kg K)]
     double precision, parameter :: rhow = 1000.0_dp  !< density of water [kg/m3]
     double precision, parameter :: hsmax= 5.0_dp     !< maximum snow height [m]
+    double precision, parameter :: epsil= epsilon(1.0_dp) !< smallest double precision number
 
 
     type surface_param_class !< Define all parameters needed for the surface module
@@ -280,18 +281,17 @@ contains
 
         !> 5. Refreezing (m/s) as fraction of melt (increases with snow height)
         if (.not. bnd%refr) then
-            f_rz = 0.0_dp
-            where (now%hsnow>0.0_dp) f_rz = par%rcrit!1.0_dp - exp(-now%hsnow/par%rcrit)
+            f_rz = par%rcrit!1.0_dp - dexp(-now%hsnow/(par%rcrit+epsil))
             ! potential refreezing
             now%refr = qcold/(rhow*clm)
             refrozen_rain = dmin1(now%refr,now%rf)
-            ! potential refeezing snow
+            ! potential refreezing snow
             refrozen_snow = dmax1(now%refr-refrozen_rain,0.0_dp)
             ! actual refreezing snow
             refrozen_snow = dmin1(refrozen_snow,now%melted_snow)
             ! actual refreezing
-            refrozen_rain =  f_rz*refrozen_rain
-            refrozen_snow =  f_rz*refrozen_snow
+            refrozen_rain = f_rz*dmin1(now%hsnow/par%tstic,refrozen_rain)
+            refrozen_snow = f_rz*dmin1(now%hsnow/par%tstic,refrozen_snow)
             now%refr = refrozen_rain + refrozen_snow
             ! energy released during refreezing that has not been used
             ! is subtracted from residual energy
@@ -335,20 +335,17 @@ contains
         end if
 
         !> 12. Update snow albedo
-        f_alb = 1.0_dp - exp(-now%hsnow/par%hcrit)
+        f_alb = 1.0_dp - dexp(-now%hsnow/(par%hcrit+epsil))
         if (.not. bnd%alb) then 
             if (trim(par%alb_scheme) .eq. "slater") then
                 call albedo_slater(now%alb_snow,now%tsurf,par%tmin,par%tmax,par%alb_smax,par%alb_smin)
-            end if
-            if (trim(par%alb_scheme) .eq. "denby") then
+            else if (trim(par%alb_scheme) .eq. "denby") then
                 call albedo_denby(now%alb_snow,now%melt,par%alb_smax,par%alb_smin,par%mcrit)
-            end if
-            if (trim(par%alb_scheme) .eq. "isba") then
+            else if (trim(par%alb_scheme) .eq. "isba") then
                 call albedo_isba(now%alb_snow,now%sf,now%melt,par%tstic,par%tstic,par%tau_a,par%tau_f,&
                                  par%w_crit,par%mcrit,par%alb_smin,par%alb_smax)
-            if (trim(par%alb_scheme) .eq. "none") then
+            else if (trim(par%alb_scheme) .eq. "none") then
                 now%alb_snow = par%alb_smax
-            end if
             end if
             where (now%mask == 2)
                 now%alb = par%albi + f_alb*(now%alb_snow - par%albi)
@@ -486,7 +483,7 @@ contains
         ! where no melting occurs, albedo decreases linearly
         alb_dry = alb - tau_a*tstic/tau
         !where melting occurs, albedo decreases exponentially
-        alb_wet = (alb - alb_smin)*exp(-tau_f*tstic/tau) + alb_smin
+        alb_wet = (alb - alb_smin)*dexp(-tau_f*tstic/tau) + alb_smin
         alb_new = sf*tstic/(w_crn/rhow)*(alb_smax-alb_smin)
 
         ! dry/wet-averaged albedo
