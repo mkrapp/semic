@@ -6,7 +6,7 @@ import sys
 
 mpl.rcParams['figure.figsize'] = 8,12
 
-var_names = ['Surface Temperature (K)', 'SW net (W/m2)', 'SMB (mm/day)',
+var_names = ['Surface Temperature (K)', 'Albedo', 'SMB (mm/day)',
              'Melt (mm/day)', 'Accumulation (mm/day)', 'SHF (W/m2)', 'LHF (W/m2)']
 
 data_in = np.loadtxt(sys.argv[1])
@@ -26,8 +26,11 @@ data = data_in[:,bstart::nbasins]
 vali = vali_in[:,bstart::nbasins]
 
 # remove albedo (2nd entry)
-data = np.delete(data,1,1)
-vali = np.delete(vali,1,1)
+#data = np.delete(data,1,1)
+#vali = np.delete(vali,1,1)
+# remove snow height (3rd entry)
+data = np.delete(data,2,1)
+vali = np.delete(vali,2,1)
 
 f, ax = plt.subplots(7,4)
 #f = plt.figure(figsize=(6,12))
@@ -39,8 +42,8 @@ if nsteps>365: lw=1
 for y in range(ndata-1):
     ax[y,0] = plt.subplot2grid((7,4), (y,0), colspan=3)
     fac = 1.
-    if y >= 2 and y < 5: fac = 86.4e6
     label = None
+    if var_names[y] in [ 'SMB (mm/day)', 'Melt (mm/day)', 'Accumulation (mm/day)']: fac = 86.4e6
     if y == 1: label = 'semic'
     ax[y,0].plot(x,fac*data[:,y],'k-',lw=lw,alpha=0.5,label=label)
     if y == 1: label = sys.argv[2]

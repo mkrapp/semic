@@ -23,7 +23,7 @@ program example
     integer :: loi_mask(100)
 
     ! name list to drive model
-    namelist /driver/ nloop, ntime, nx, loi_mask, input_forcing, output, validation 
+    namelist /driver/ nloop, ntime, nx, loi_mask, input_forcing, output, validation
 
     prog_name = "example"
 
@@ -58,7 +58,7 @@ program example
 
     ! read input from file (forcing data)
     call read_forcing(input_forcing,forc,ntime,nx)
-    call read_validation(validation,vali,ntime,nx)
+    if (len_trim(validation)>0) call read_validation(validation,vali,ntime,nx)
 
     ! open file for model output
     open(2,file=trim(output),form='formatted')
@@ -72,7 +72,7 @@ program example
 
     ! initialise prognostic variables
     surface%now%mask(:) = loi_mask(:nx)
-    surface%now%hsnow(:) = 5.0
+    surface%now%hsnow(:) = 1.0
     surface%now%hice(:)  = 0.0
     surface%now%alb(:) = 0.8
     surface%now%tsurf(:) = 260.
@@ -115,8 +115,8 @@ program example
 
             ! write output at the end of outer loop
             if (k==nloop) then
-                write(2,*) surface%now%tsurf, surface%now%alb,     &
-                           forc%swd(:,day)*(1.0-surface%now%alb), surface%now%smb, &
+                write(2,'(8E15.7)') surface%now%tsurf, surface%now%alb,     &
+                           surface%now%hsnow, surface%now%smb, &
                            surface%now%melt, surface%now%acc, &
                            surface%now%shf, surface%now%lhf
             end if

@@ -1,14 +1,14 @@
 &driver
-  nloop = 100,
+  nloop = 10,
   ntime = 365,
-  nx    = 7,
-  loi_mask(1:3) = 1,1,1, 
-  input_forcing = "data/transect_input.txt",
-  validation = "data/transect_output.txt",
+  nx    = 1,
+  loi_mask(1:3) = 2,
+  input_forcing = "data/c01_input.txt",
+  validation = "data/c01_output.txt",
   output = "example.out",
 /
 &surface_physics
-  boundary = "" "" "",
+  boundary = "alb" "" "",
   tstic  = 86400.,
   ceff   = 2.0e6,
   csh    = 2.0e-3,
