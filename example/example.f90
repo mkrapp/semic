@@ -83,7 +83,7 @@ program example
     call print_boundary_opt(surface%bnd)
 
     write(*,*) "\x1B[32mexample:\x1B[0m Write output to file \x1B[4;37m", trim(output), "\x1B[0m"
-    write(2,*) '# tsurf(K)      alb      hsnow(m)      smb(m/s)     melt(m/s)      acc(m/s)'
+    write(2,'(A,A14,7A15)') '#', 'tsurf(K)', 'alb', 'hsnow(m)', 'smb(m/s)', 'melt(m/s)', 'acc(m/s)', 'shf(W/m2)', 'lhf(W/m2)'
 
     do k=1,nloop ! re-iterate 'nloop' times
         day = 1
